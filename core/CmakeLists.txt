@@ -1,0 +1,6 @@
+add_library(chronosdb_core STATIC 
+    src/DatabaseCore.cpp 
+    src/SignalBase.cpp
+)
+
+target_include_directories(chronosdb_core PUBLIC include)

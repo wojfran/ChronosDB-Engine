@@ -47,7 +47,7 @@ class CircularBuffer {
     }
 
     bool isFull() const {
-        return  m_isFull
+        return  m_isFull;
     }
 
     bool isEmpty() const {

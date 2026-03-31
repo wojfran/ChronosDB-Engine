@@ -1,3 +1,8 @@
+#pragma once
+#include <vector>
+#include <stdexcept>
+#include <cstddef>
+
 template <typename T>
 class CircularBuffer {
     size_t m_capacity;

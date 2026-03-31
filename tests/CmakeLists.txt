@@ -10,6 +10,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(unit_tests 
     unit/test_sample.cpp
+    unit/test_circular_buffer.cpp
     # tutaj dodam później więcej testów
 )
 
@@ -17,6 +18,7 @@ target_link_libraries(unit_tests
     PRIVATE 
         gtest_main 
         common
+        chronosdb_core
 )
 
 include(GoogleTest)

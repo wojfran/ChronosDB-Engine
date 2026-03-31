@@ -12,7 +12,8 @@ class CircularBuffer {
     bool m_isFull = false;
 
     static size_t validateCapacity(size_t cap) {
-        if (cap <= 0) throw std::invalid_argument("Capacity must be greater than 0");
+        // notka: nie sprawdzam <= 0 bo size_t jest unsigned, więc nie może być ujemne
+        if (cap == 0) throw std::invalid_argument("Capacity must be greater than 0");
         return cap;
     }
 

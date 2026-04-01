@@ -11,6 +11,9 @@ FetchContent_MakeAvailable(googletest)
 add_executable(unit_tests 
     unit/test_sample.cpp
     unit/test_circular_buffer.cpp
+    unit/test_file_header.cpp
+    unit/test_signal_descriptor.cpp
+    unit/test_signal_type.cpp
     # tutaj dodam później więcej testów
 )
 

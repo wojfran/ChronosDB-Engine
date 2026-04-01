@@ -6,6 +6,4 @@
 class StorageManager {
     std::fstream m_fileStream;
     CircularBuffer<Sample> m_buffer;
-    
-
-}
+};

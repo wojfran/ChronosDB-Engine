@@ -14,7 +14,6 @@ add_executable(unit_tests
     unit/test_file_header.cpp
     unit/test_signal_descriptor.cpp
     unit/test_signal_type.cpp
-    # tutaj dodam później więcej testów
 )
 
 target_link_libraries(unit_tests 

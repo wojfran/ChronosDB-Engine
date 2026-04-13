@@ -3,7 +3,6 @@
 #include <cstring>
 
 StorageManager::StorageManager(const std::string& path) : m_buffer(1024) {
-    
     m_fileStream.open(path, std::ios::binary | std::ios::in | std::ios::out | std::ios::app);
  
     if (!m_fileStream.is_open()) {
@@ -18,6 +17,8 @@ StorageManager::StorageManager(const std::string& path) : m_buffer(1024) {
             m_header.version = 1;
             saveHeader();
         }
+    } else {
+        loadHeader();
     }
 }
 
@@ -28,5 +29,57 @@ StorageManager::~StorageManager() {
     }
 }
 
+void StorageManager::saveHeader() {
+    m_fileStream.seekp(0, std::ios::beg);
+    m_fileStream.write(reinterpret_cast<const char*>(&m_header), sizeof(FileHeader));
+    m_fileStream.flush();
+}
 
+void StorageManager::loadHeader() {
+    m_fileStream.seekg(0, std::ios::beg);
+    m_fileStream.read(reinterpret_cast<char*>(&m_header), sizeof(FileHeader));
+}
 
+bool StorageManager::addSignalDescriptor(const SignalDescriptor& d) {
+    if (m_header.signalCount >= 128) {
+        return false; 
+    }
+
+    m_header.signals[m_header.signalCount] = d;
+    m_header.signalCount++;
+    saveHeader();
+    
+    return true;
+}
+
+void StorageManager::writeRecord(const Sample& s) {
+    if (!m_buffer.push(s)) {
+        flush();
+        m_buffer.push(s);
+    }
+}
+
+void StorageManager::flush() {
+    m_fileStream.seekp(0, std::ios::end);
+    
+    while (!m_buffer.isEmpty()) {
+        Sample s = m_buffer.pop();
+        m_fileStream.write(reinterpret_cast<const char*>(&s), sizeof(Sample));
+    }
+    m_fileStream.flush();
+}
+
+const FileHeader& StorageManager::getHeader() const {
+    return m_header;
+}
+
+void StorageManager::seekTo(uint64_t offset) {
+    m_fileStream.seekg(offset, std::ios::beg);
+}
+
+bool StorageManager::readNext(Sample& outSample) {
+    if (m_fileStream.read(reinterpret_cast<char*>(&outSample), sizeof(Sample))) {
+        return true;
+    }
+    return false;
+}

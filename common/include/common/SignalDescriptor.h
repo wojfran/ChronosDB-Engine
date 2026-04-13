@@ -3,9 +3,9 @@
 
 #pragma pack(push, 1)
 struct SignalDescriptor {
-    uint32_t id;
-    char name[64];
-    char unit[16];
-    SignalType type;    
+    uint32_t m_id;
+    char m_name[64];
+    char m_unit[16];
+    SignalType m_type;    
 };
 #pragma pack(pop)

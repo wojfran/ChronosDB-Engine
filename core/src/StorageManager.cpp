@@ -21,5 +21,12 @@ StorageManager::StorageManager(const std::string& path) : m_buffer(1024) {
     }
 }
 
+StorageManager::~StorageManager() {
+    flush();
+    if (m_fileStream.is_open()) {
+        m_fileStream.close();
+    }
+}
+
 
 

@@ -12,11 +12,11 @@ class NumericSignal : public SignalBase {
     size_t m_count = 0;
     size_t m_errorCount = 0;
 
-    double = m_mean = 0.0;
-    double = m_m2 = 0.0;
+    double m_mean = 0.0;
+    double m_m2 = 0.0;
 
     double m_integral = 0.0;
-    double = m_lastValue = 0.0;
+    double m_lastValue = 0.0;
     int64_t m_lastTimestamp = -1;
 
     double m_min = std::numeric_limits<double>::max();
@@ -56,7 +56,7 @@ class NumericSignal : public SignalBase {
 
         int64_t currTimestamp = s.getTimestamp();
         if (m_lastTimestamp != -1) {
-            double dt = static_cast<double>(currTimestamp - m_lastTimestamp);
+            double dt = static_cast<double>(currTimestamp - m_lastTimestamp) / 1000.0;
             if (dt > 0) {
                 m_integral += (m_lastValue + val) * 0.5 * dt;
             }

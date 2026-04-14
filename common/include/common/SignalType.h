@@ -8,7 +8,7 @@
 enum class SignalType : uint8_t {
     Double = 0,
     Float = 1,
-    int32 = 2,
-    int64 = 3
+    Int32 = 2,
+    Int64 = 3
 };
 #pragma pack(pop)

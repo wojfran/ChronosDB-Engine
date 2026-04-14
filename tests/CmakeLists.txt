@@ -15,6 +15,8 @@ add_executable(unit_tests
     unit/test_signal_descriptor.cpp
     unit/test_signal_type.cpp
     unit/test_storage_manager.cpp
+    unit/test_numeric_signal.cpp
+    unit/test_signal_polymorphism.cpp
 )
 
 target_link_libraries(unit_tests 

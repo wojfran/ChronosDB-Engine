@@ -33,7 +33,7 @@ uint64_t IndexProvider::getClosestOffset(int64_t time, uint64_t dataOffset) cons
     auto it = m_indexMap.lower_bound(time);
 
     if (it != m_indexMap.end() && it->first == time) return it->second;
-    if (it == m_indexMap.begin()) return it->second;
+    if (it == m_indexMap.begin()) return dataOffset;
 
     --it;
     return it->second;

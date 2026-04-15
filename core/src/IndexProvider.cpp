@@ -6,17 +6,21 @@ void IndexProvider::addEntry(int64_t time, uint64_t offset) {
     if (m_sampleCounter >= m_interval) {
         if (m_indexMap.size() >= m_maxEntries) {
             thin();
+            if (m_maxEntries % 2 != 0) {
+                m_indexMap.insert({time, offset});
+                m_sampleCounter = 0;
+            }
+        } else {
+            m_indexMap.insert({time, offset});
+            m_sampleCounter = 0;
         }
-
-        m_indexMap.insert({time, offset});
-        m_sampleCounter = 0;
     }
 }
 
 void IndexProvider::thin() {
     m_interval *= 2;
 
-    bool keep = true;
+    bool keep = false;
     for (auto it = m_indexMap.begin(); it != m_indexMap.end(); ) {
         if (!keep) {
             it = m_indexMap.erase(it);

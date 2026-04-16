@@ -2,7 +2,7 @@
 #include <cstring>
 #include "core/StorageManager.h"
 
-StorageManager::StorageManager(const std::string& path) : m_buffer(1024) {
+StorageManager::StorageManager(const std::string& path) : m_buffer(1024), m_fileSize(0) {
     m_fileStream.open(path, std::ios::binary | std::ios::in | std::ios::out);
  
     if (!m_fileStream.is_open()) {
@@ -17,8 +17,11 @@ StorageManager::StorageManager(const std::string& path) : m_buffer(1024) {
             m_header.m_version = 1;
             saveHeader();
         }
+        m_fileSize = m_fileStream.tellp();
     } else {
         loadHeader();
+        m_fileStream.seekp(0, std::ios::end);
+        m_fileSize = m_fileStream.tellp();
     }
 }
 
@@ -52,19 +55,22 @@ bool StorageManager::addSignalDescriptor(const SignalDescriptor& d) {
     return true;
 }
 
-void StorageManager::writeRecord(const Sample& s) {
+uint64_t StorageManager::writeRecord(const Sample& s) {
+    uint64_t predictedOffset = m_fileSize + (m_buffer.size() * sizeof(Sample));
+
     if (!m_buffer.push(s)) {
         flush();
         m_buffer.push(s);
     }
+    return predictedOffset;
 }
 
 void StorageManager::flush() {
     m_fileStream.seekp(0, std::ios::end);
-    
     while (!m_buffer.isEmpty()) {
         Sample s = m_buffer.pop();
         m_fileStream.write(reinterpret_cast<const char*>(&s), sizeof(Sample));
+        m_fileSize += sizeof(Sample);
     }
     m_fileStream.flush();
 }

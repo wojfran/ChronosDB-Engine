@@ -48,6 +48,12 @@ bool StorageManager::addSignalDescriptor(const SignalDescriptor& d) {
         return false; 
     }
 
+    for (uint32_t i = 0; i < m_header.m_signalCount; ++i) {
+        if (m_header.m_signals[i].m_id == d.m_id) {
+            return false;
+        }
+    }
+
     m_header.m_signals[m_header.m_signalCount] = d;
     m_header.m_signalCount++;
     saveHeader();

@@ -26,7 +26,7 @@ class DatabaseCore {
     void rebuildState();
 
     public:
-    DatabaseCore(uint32_t indexInterval = 100, size_t maxIndexExntires = 1000);
+    DatabaseCore(uint32_t indexInterval = 100, size_t maxIndexEntries = 1000);
     ~DatabaseCore();
     bool open(const std::string& path);
     void close();

@@ -1,18 +1,28 @@
 #pragma once
+#include <cstdint>
 #include <memory>
+#include <string>
+#include <unordered_map>
 #include <vector>
-#include "core/StorageManager.h"
-#include "core/IndexProvider.h"
-#include "core/SignalBase.h"
-using namespace std;
+#include "common/SignalType.h"
+#include "common/Sample.h"
+
+// forward declaration pozwala na szybszą kompilację
+// (nie dodajemy plikó .h), jest to możliwe przez to że 
+// używamy pointerów do tych klas 
+class StorageManager ;
+class IndexProvider ;
+class SignalBase ;
 
 class DatabaseCore {
     private:
-    unique_ptr<StorageManager> m_storage;
-    unique_ptr<IndexProvider> m_index;
-    vector<unique_ptr<SignalBase>> m_signals;
+    std::unique_ptr<StorageManager> m_storage;
+    std::unique_ptr<IndexProvider> m_index;
+    std::unordered_map<uint32_t, std::unique_ptr<SignalBase>> m_signals;
 
     public:
+    DatabaseCore();
+    ~DatabaseCore();
     bool open(const std::string& path);
     bool addSignal(std::string name, std::string unit, SignalType type);
     void append(uint32_t id, double value, uint8_t status = 0);

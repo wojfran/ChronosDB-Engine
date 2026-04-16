@@ -16,12 +16,14 @@ StorageManager::StorageManager(const std::string& path) : m_buffer(1024), m_file
             m_header.m_magicNumber = 0x4348524F;
             m_header.m_version = 1;
             saveHeader();
+            m_fileSize = static_cast<uint64_t>(m_fileStream.tellp());
         }
-        m_fileSize = m_fileStream.tellp();
     } else {
         loadHeader();
+        m_fileStream.clear();
         m_fileStream.seekp(0, std::ios::end);
         m_fileSize = m_fileStream.tellp();
+        if (m_fileSize < sizeof(FileHeader)) m_fileSize = sizeof(FileHeader);
     }
 }
 
@@ -33,14 +35,20 @@ StorageManager::~StorageManager() {
 }
 
 void StorageManager::saveHeader() {
+    m_fileStream.clear();
     m_fileStream.seekp(0, std::ios::beg);
     m_fileStream.write(reinterpret_cast<const char*>(&m_header), sizeof(FileHeader));
     m_fileStream.flush();
 }
 
 void StorageManager::loadHeader() {
+    m_fileStream.clear();
     m_fileStream.seekg(0, std::ios::beg);
     m_fileStream.read(reinterpret_cast<char*>(&m_header), sizeof(FileHeader));
+
+    if (m_header.m_magicNumber != 0x4348524F) {
+        std::cerr << "Warning: Invalid magic number!" << std::endl;
+    }
 }
 
 bool StorageManager::addSignalDescriptor(const SignalDescriptor& d) {

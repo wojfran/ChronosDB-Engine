@@ -3,6 +3,7 @@
 #include <thread>
 #include <vector>
 #include <chrono>
+#include <cmath>
 
 #include "core/DatabaseCore.h"
 #include "core/SignalBase.h"
@@ -59,10 +60,6 @@ TEST_F(DatabaseCoreTest, AppendsDataAndCalculatesGlobalStats) {
     EXPECT_DOUBLE_EQ(stats->getMax(), 30.0);
 }
 
-// -------------------------
-// Range queries
-// -------------------------
-
 TEST_F(DatabaseCoreTest, RetrievesDataFromRange) {
     DatabaseCore db(1, 100); 
     ASSERT_TRUE(db.open(TEST_DB_PATH));
@@ -93,10 +90,6 @@ TEST_F(DatabaseCoreTest, RetrievesDataFromRange) {
     EXPECT_EQ(results.size(), 2);
 }
 
-// -------------------------
-// Stats in range
-// -------------------------
-
 TEST_F(DatabaseCoreTest, CalculatesStatsInRange) {
     DatabaseCore db;
     db.open(TEST_DB_PATH);
@@ -104,6 +97,7 @@ TEST_F(DatabaseCoreTest, CalculatesStatsInRange) {
 
     for (int i = 1; i <= 5; i++) {
         db.append(1, i);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     auto stats = db.getStatsInRange(1, 0, 9999999999999LL);
@@ -111,11 +105,12 @@ TEST_F(DatabaseCoreTest, CalculatesStatsInRange) {
     ASSERT_NE(stats, nullptr);
     EXPECT_EQ(stats->getCount(), 5);
     EXPECT_DOUBLE_EQ(stats->getAverage(), 3.0);
+    EXPECT_DOUBLE_EQ(stats->getMin(), 1.0);
+    EXPECT_DOUBLE_EQ(stats->getMax(), 5.0);
+    EXPECT_DOUBLE_EQ(stats->getVariance(), 2.0);
+    EXPECT_DOUBLE_EQ(stats->getStdDev(), std::sqrt(2.0));
+    EXPECT_GT(stats->getIntegral(), 0.0);
 }
-
-// -------------------------
-// Persistence
-// -------------------------
 
 TEST_F(DatabaseCoreTest, PersistenceRebuildsState) {
     {

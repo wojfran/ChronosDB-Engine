@@ -5,7 +5,7 @@
 #include <chrono>
 #include <cstring>
 
-DatabaseCore::DatabaseCore(uint32_t indexInterval = 100, size_t maxIndexEntries = 1000) {
+DatabaseCore::DatabaseCore(uint32_t indexInterval, size_t maxIndexEntries) {
     m_index = std::make_unique<IndexProvider>(indexInterval, maxIndexEntries);
 }
 
@@ -59,7 +59,7 @@ bool DatabaseCore::addSignal(uint32_t id, std::string name, std::string unit, Si
     return false;
 }
 
-void DatabaseCore::append(uint32_t id, double value, uint8_t status = 0) {
+void DatabaseCore::append(uint32_t id, double value, uint8_t status) {
     std::lock_guard<std::mutex> lock(m_dbMutex);
     
     auto it = m_signals.find(id);

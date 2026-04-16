@@ -18,6 +18,7 @@ add_executable(unit_tests
     unit/test_numeric_signal.cpp
     unit/test_signal_polymorphism.cpp
     unit/test_index_provider.cpp
+    unit/test_database_core.cpp
 )
 
 target_link_libraries(unit_tests 

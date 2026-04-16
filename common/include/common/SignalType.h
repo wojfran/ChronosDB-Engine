@@ -1,3 +1,4 @@
+#pragma once
 #include <cstdint>
 
 // apparently enum class takes up 

@@ -7,7 +7,7 @@ StorageManager::StorageManager(const std::string& path) : m_buffer(1024), m_file
  
     if (!m_fileStream.is_open()) {
         m_fileStream.clear();
-        m_fileStream.open(path, std::ios::binary | std::ios::out | std::ios::trunc);
+        m_fileStream.open(path, std::ios::binary | std::ios::in | std::ios::out | std::ios::trunc);
 
         if (m_fileStream.is_open()) {
             // this forces overy byte of m_header to be set to 0 
@@ -72,7 +72,11 @@ uint64_t StorageManager::writeRecord(const Sample& s) {
 }
 
 void StorageManager::flush() {
+    if (m_buffer.isEmpty()) return;
+
+    m_fileStream.clear();
     m_fileStream.seekp(0, std::ios::end);
+
     while (!m_buffer.isEmpty()) {
         Sample s = m_buffer.pop();
         m_fileStream.write(reinterpret_cast<const char*>(&s), sizeof(Sample));
@@ -86,6 +90,7 @@ const FileHeader& StorageManager::getHeader() const {
 }
 
 void StorageManager::seekTo(uint64_t offset) {
+    m_fileStream.clear();
     m_fileStream.seekg(offset, std::ios::beg);
 }
 

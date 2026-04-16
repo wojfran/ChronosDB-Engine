@@ -24,10 +24,6 @@ protected:
     }
 };
 
-// -------------------------
-// Lifecycle & signal management
-// -------------------------
-
 TEST_F(DatabaseCoreTest, HandlesLifecycleAndSignalAddition) {
     DatabaseCore db;
 
@@ -43,16 +39,14 @@ TEST_F(DatabaseCoreTest, HandlesLifecycleAndSignalAddition) {
     EXPECT_FALSE(db.isOpen());
 }
 
-// -------------------------
-// Basic append & stats
-// -------------------------
-
 TEST_F(DatabaseCoreTest, AppendsDataAndCalculatesGlobalStats) {
     DatabaseCore db;
     db.open(TEST_DB_PATH);
     db.addSignal(1, "Voltage", "V", SignalType::Double);
+    db.addSignal(2, "Current", "A", SignalType::Double);
 
     db.append(1, 10.0);
+    db.append(2, 1000.0);
     db.append(1, 20.0);
     db.append(1, 30.0);
 
@@ -70,29 +64,33 @@ TEST_F(DatabaseCoreTest, AppendsDataAndCalculatesGlobalStats) {
 // -------------------------
 
 TEST_F(DatabaseCoreTest, RetrievesDataFromRange) {
-    DatabaseCore db(1, 100);
-    db.open(TEST_DB_PATH);
-    db.addSignal(1, "Sensor", "X", SignalType::Double);
+    DatabaseCore db(1, 100); 
+    ASSERT_TRUE(db.open(TEST_DB_PATH));
+    ASSERT_TRUE(db.addSignal(1, "Sensor", "X", SignalType::Double));
 
     db.append(1, 1.0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    db.append(2, 50.0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
     int64_t t_start = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
 
     db.append(1, 10.0);
+    db.append(2, 100.0);
     db.append(1, 20.0);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
     int64_t t_end = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
 
-    db.append(1, 100.0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    db.append(2, 30.0);
+    db.append(1, 100.0); 
 
-    auto range = db.getRange(1, t_start, t_end);
+    auto results = db.getRange(1, t_start, t_end);
 
-    EXPECT_EQ(range.size(), 2);
+    EXPECT_EQ(results.size(), 2);
 }
 
 // -------------------------

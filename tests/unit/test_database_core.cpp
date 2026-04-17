@@ -134,16 +134,14 @@ TEST_F(DatabaseCoreTest, PersistenceRebuildsState) {
     }
 }
 
-// -------------------------
-// Edge cases
-// -------------------------
-
 TEST_F(DatabaseCoreTest, AppendUnknownSignalDoesNothing) {
     DatabaseCore db;
     db.open(TEST_DB_PATH);
 
     db.append(999, 10.0);
     EXPECT_EQ(db.getGlobalStats(999), nullptr);
+    EXPECT_TRUE(db.getRange(999, 0, 9999999999999LL).empty());
+    EXPECT_TRUE(db.getStatsInRange(999, 0, 9999999999999LL) == nullptr);
 }
 
 TEST_F(DatabaseCoreTest, EmptyRangeReturnsNothing) {
@@ -156,10 +154,6 @@ TEST_F(DatabaseCoreTest, EmptyRangeReturnsNothing) {
     auto range = db.getRange(1, 9999999999999LL, 10000000000000LL);
     EXPECT_TRUE(range.empty());
 }
-
-// -------------------------
-// Multiple signals
-// -------------------------
 
 TEST_F(DatabaseCoreTest, SignalsAreIndependent) {
     DatabaseCore db;
@@ -175,11 +169,18 @@ TEST_F(DatabaseCoreTest, SignalsAreIndependent) {
 
     EXPECT_DOUBLE_EQ(db.getGlobalStats(1)->getAverage(), 15.0);
     EXPECT_DOUBLE_EQ(db.getGlobalStats(2)->getAverage(), 150.0);
-}
 
-// -------------------------
-// High volume
-// -------------------------
+    EXPECT_DOUBLE_EQ(db.getGlobalStats(1)->getVariance(), 25.0);
+    EXPECT_DOUBLE_EQ(db.getGlobalStats(2)->getVariance(), 2500.0);
+
+    EXPECT_DOUBLE_EQ(db.getGlobalStats(1)->getStdDev(), 5.0);
+    EXPECT_DOUBLE_EQ(db.getGlobalStats(2)->getStdDev(), 50.0);
+
+    EXPECT_DOUBLE_EQ(db.getGlobalStats(1)->getMin(), 10.0);
+    EXPECT_DOUBLE_EQ(db.getGlobalStats(1)->getMax(), 20.0);
+    EXPECT_DOUBLE_EQ(db.getGlobalStats(2)->getMin(), 100.0);
+    EXPECT_DOUBLE_EQ(db.getGlobalStats(2)->getMax(), 200.0);
+}
 
 TEST_F(DatabaseCoreTest, HandlesLargeVolume) {
     DatabaseCore db;
@@ -192,10 +193,6 @@ TEST_F(DatabaseCoreTest, HandlesLargeVolume) {
 
     EXPECT_EQ(db.getGlobalStats(1)->getCount(), 1000);
 }
-
-// -------------------------
-// 🔥 CONCURRENCY TESTS
-// -------------------------
 
 TEST_F(DatabaseCoreTest, ConcurrentAppendsAreThreadSafe) {
     DatabaseCore db;

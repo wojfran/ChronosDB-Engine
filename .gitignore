@@ -24,3 +24,5 @@ CMakeUserPresets.json
 __pycache__/
 *.py[cod]
 .venv/
+
+exam_preparation/

@@ -199,3 +199,13 @@ void DatabaseCore::saveIndexConfig() {
     if (!m_storage || !m_index) return;
     m_storage->setIndexConfig(m_index->getInterval(), m_index->getMaxEntries());
 }
+
+uint32_t DatabaseCore::getIndexInterval() const {
+    std::lock_guard<std::mutex> lock(m_dbMutex);
+    return m_index ? m_index->getInterval() : DEFAULT_INDEX_INTERVAL;
+}
+
+size_t DatabaseCore::getIndexMaxEntries() const {
+    std::lock_guard<std::mutex> lock(m_dbMutex);
+    return m_index ? m_index->getMaxEntries() : DEFAULT_MAX_INDEX_ENTRIES;
+}

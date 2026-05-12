@@ -41,4 +41,6 @@ class DatabaseCore {
     std::unique_ptr<SignalBase> getStatsInRange(uint32_t id, int64_t t1, int64_t t2);
     std::vector<Sample> getRange(uint32_t id, int64_t t1, int64_t t2);
     bool isOpen() const;
+    uint32_t getIndexInterval() const;
+    size_t getIndexMaxEntries() const;
 };

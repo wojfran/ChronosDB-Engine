@@ -168,3 +168,105 @@ TEST_F(DatabaseFlowTest, ConcurrentWritesPersistAcrossReopen) {
 	EXPECT_DOUBLE_EQ(reopenedB->getMin(), 2.0);
 	EXPECT_DOUBLE_EQ(reopenedB->getMax(), 2.0);
 }
+
+TEST_F(DatabaseFlowTest, IndexConfigPersistsAcrossReopen) {
+	DatabaseCore db;
+	ASSERT_TRUE(db.open(testPath.string()));
+	ASSERT_TRUE(db.addSignal(1, "Signal", "u", SignalType::Double));
+
+	for (int i = 0; i < 50; ++i) {
+		db.append(1, 1.0);
+	}
+
+	uint32_t initialInterval = db.getIndexInterval();
+	size_t initialMaxEntries = db.getIndexMaxEntries();
+	EXPECT_EQ(initialInterval, 100u);
+	EXPECT_EQ(initialMaxEntries, 1000u);
+
+	db.close();
+
+	DatabaseCore reopened;
+	ASSERT_TRUE(reopened.open(testPath.string()));
+
+	uint32_t reopenedInterval = reopened.getIndexInterval();
+	size_t reopenedMaxEntries = reopened.getIndexMaxEntries();
+	EXPECT_EQ(reopenedInterval, initialInterval);
+	EXPECT_EQ(reopenedMaxEntries, initialMaxEntries);
+}
+
+TEST_F(DatabaseFlowTest, IndexAutuningPersistsAcrossReopen) {
+	DatabaseCore db;
+	ASSERT_TRUE(db.open(testPath.string()));
+	ASSERT_TRUE(db.addSignal(1, "Signal", "u", SignalType::Double));
+
+	for (int i = 0; i < 100; ++i) {
+		db.append(1, 1.0);
+	}
+
+	// Verify defaults are preserved
+	uint32_t initialInterval = db.getIndexInterval();
+	size_t initialMaxEntries = db.getIndexMaxEntries();
+	EXPECT_EQ(initialInterval, 100u);
+	EXPECT_EQ(initialMaxEntries, 1000u);
+
+	db.close();
+
+	DatabaseCore reopened;
+	ASSERT_TRUE(reopened.open(testPath.string()));
+
+	// Verify same config on reopen
+	uint32_t reopenedInterval = reopened.getIndexInterval();
+	size_t reopenedMaxEntries = reopened.getIndexMaxEntries();
+	EXPECT_EQ(reopenedInterval, initialInterval);
+	EXPECT_EQ(reopenedMaxEntries, initialMaxEntries);
+	reopened.close();
+}
+
+TEST_F(DatabaseFlowTest, IndexConfigIsolationBetweenFiles) {
+	std::filesystem::path fileA = std::filesystem::temp_directory_path() / "chronosdb_config_isolation_A.dat";
+	std::filesystem::path fileB = std::filesystem::temp_directory_path() / "chronosdb_config_isolation_B.dat";
+
+	if (std::filesystem::exists(fileA)) std::filesystem::remove(fileA);
+	if (std::filesystem::exists(fileB)) std::filesystem::remove(fileB);
+
+	{
+		DatabaseCore dbA;
+		ASSERT_TRUE(dbA.open(fileA.string()));
+		ASSERT_TRUE(dbA.addSignal(1, "SignalA", "u", SignalType::Double));
+
+		for (int i = 0; i < 50; ++i) {
+			dbA.append(1, 1.0);
+		}
+
+		uint32_t intervalA = dbA.getIndexInterval();
+		dbA.close();
+
+		DatabaseCore dbB;
+		ASSERT_TRUE(dbB.open(fileB.string()));
+		ASSERT_TRUE(dbB.addSignal(1, "SignalB", "u", SignalType::Double));
+
+		for (int i = 0; i < 75; ++i) {
+			dbB.append(1, 2.0);
+		}
+
+		uint32_t intervalB = dbB.getIndexInterval();
+		dbB.close();
+
+		// Both should have default interval
+		EXPECT_EQ(intervalA, 100u);
+		EXPECT_EQ(intervalB, 100u);
+
+		DatabaseCore reopenedA;
+		ASSERT_TRUE(reopenedA.open(fileA.string()));
+		EXPECT_EQ(reopenedA.getIndexInterval(), intervalA);
+		reopenedA.close();
+
+		DatabaseCore reopenedB;
+		ASSERT_TRUE(reopenedB.open(fileB.string()));
+		EXPECT_EQ(reopenedB.getIndexInterval(), intervalB);
+		reopenedB.close();
+	}
+
+	if (std::filesystem::exists(fileA)) std::filesystem::remove(fileA);
+	if (std::filesystem::exists(fileB)) std::filesystem::remove(fileB);
+}

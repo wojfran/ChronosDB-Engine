@@ -61,7 +61,7 @@ TEST_F(DatabaseCoreTest, AppendsDataAndCalculatesGlobalStats) {
 }
 
 TEST_F(DatabaseCoreTest, RetrievesDataFromRange) {
-    DatabaseCore db(1, 100); 
+    DatabaseCore db; 
     ASSERT_TRUE(db.open(TEST_DB_PATH));
     ASSERT_TRUE(db.addSignal(1, "Sensor", "X", SignalType::Double));
 

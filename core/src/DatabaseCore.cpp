@@ -5,8 +5,8 @@
 #include <chrono>
 #include <cstring>
 
-DatabaseCore::DatabaseCore(uint32_t indexInterval, size_t maxIndexEntries) {
-    m_index = std::make_unique<IndexProvider>(indexInterval, maxIndexEntries);
+DatabaseCore::DatabaseCore() {
+    m_index = std::make_unique<IndexProvider>(DEFAULT_INDEX_INTERVAL, DEFAULT_MAX_INDEX_ENTRIES);
 }
 
 DatabaseCore::~DatabaseCore() {
@@ -17,6 +17,7 @@ bool DatabaseCore::open(const std::string& path) {
     std::lock_guard<std::mutex> lock(m_dbMutex);
     m_storage = std::make_unique<StorageManager>(path);
     if (m_storage) {
+        loadIndexConfig();
         loadSignalFromHeader();
         rebuildState();
         return true;
@@ -26,7 +27,11 @@ bool DatabaseCore::open(const std::string& path) {
 
 void DatabaseCore::close() {
     std::lock_guard<std::mutex> lock(m_dbMutex);
-    m_storage.reset();
+    if (m_storage) {
+        m_storage->flush();
+        saveIndexConfig();
+        m_storage.reset();
+    }
     m_index->clear();
     m_signals.clear();
 }
@@ -104,7 +109,7 @@ std::unique_ptr<SignalBase> DatabaseCore::getStatsInRange(uint32_t id, int64_t t
         rangeStats = std::make_unique<NumericSignal<int64_t>>(id, it->second->getName(), it->second->getUnit());
     }
 
-    uint64_t startOffset = m_index->getClosestOffset(t1, 65536);
+    uint64_t startOffset = m_index->getClosestOffset(t1, DATA_OFFSET);
     m_storage->seekTo(startOffset);
 
     Sample out; 
@@ -125,7 +130,7 @@ std::vector<Sample> DatabaseCore::getRange(uint32_t id, int64_t t1, int64_t t2) 
 
     std::vector<Sample> results;
 
-    uint64_t startOffset = m_index->getClosestOffset(t1, 65536);
+    uint64_t startOffset = m_index->getClosestOffset(t1, DATA_OFFSET);
     m_storage->seekTo(startOffset);
 
     Sample out; 
@@ -165,9 +170,9 @@ void DatabaseCore::rebuildState() {
     m_index->clear();
     for (auto& [id, sig] : m_signals) sig->resetStatistics();
 
-    m_storage->seekTo(65536);
+    m_storage->seekTo(DATA_OFFSET);
     Sample s;
-    uint64_t currentOffset = 65536;
+    uint64_t currentOffset = DATA_OFFSET;
 
     while (m_storage->readNext(s)) {
         m_index->addEntry(s.getTimestamp(), currentOffset);
@@ -177,4 +182,20 @@ void DatabaseCore::rebuildState() {
         }
         currentOffset += sizeof(Sample);
     }
+}
+
+void DatabaseCore::loadIndexConfig() {
+    if (!m_storage) return;
+    uint32_t interval, maxEntries;
+    m_storage->getIndexConfig(interval, maxEntries);
+    
+    if (interval == 0) interval = DEFAULT_INDEX_INTERVAL;
+    if (maxEntries == 0) maxEntries = DEFAULT_MAX_INDEX_ENTRIES;
+    
+    m_index = std::make_unique<IndexProvider>(interval, maxEntries);
+}
+
+void DatabaseCore::saveIndexConfig() {
+    if (!m_storage || !m_index) return;
+    m_storage->setIndexConfig(m_index->getInterval(), m_index->getMaxEntries());
 }

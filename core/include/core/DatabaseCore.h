@@ -21,12 +21,17 @@ class DatabaseCore {
     std::unique_ptr<IndexProvider> m_index;
     std::unordered_map<uint32_t, std::unique_ptr<SignalBase>> m_signals;
     mutable std::mutex m_dbMutex;
+    static constexpr uint64_t DATA_OFFSET = 65536;
+    static constexpr uint32_t DEFAULT_INDEX_INTERVAL = 100;
+    static constexpr uint32_t DEFAULT_MAX_INDEX_ENTRIES = 1000;
 
     void loadSignalFromHeader();
     void rebuildState();
+    void loadIndexConfig();
+    void saveIndexConfig();
 
     public:
-    DatabaseCore(uint32_t indexInterval = 100, size_t maxIndexEntries = 1000);
+    DatabaseCore();
     ~DatabaseCore();
     bool open(const std::string& path);
     void close();

@@ -22,4 +22,5 @@ public:
     void clear();
     size_t size() const { return m_indexMap.size(); }
     uint32_t getInterval() const { return m_interval; }
+    size_t getMaxEntries() const { return m_maxEntries; }
 };

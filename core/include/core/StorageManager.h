@@ -24,4 +24,6 @@ class StorageManager {
     void seekTo(uint64_t offset);
     bool readNext(Sample& outSample);
     void flush();
+    void setIndexConfig(uint32_t interval, uint32_t maxEntries);
+    void getIndexConfig(uint32_t& outInterval, uint32_t& outMaxEntries) const;
 };

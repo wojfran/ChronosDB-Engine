@@ -108,3 +108,14 @@ bool StorageManager::readNext(Sample& outSample) {
     }
     return false;
 }
+
+void StorageManager::setIndexConfig(uint32_t interval, uint32_t maxEntries) {
+    m_header.m_indexInterval = interval;
+    m_header.m_maxIndexEntries = maxEntries;
+    saveHeader();
+}
+
+void StorageManager::getIndexConfig(uint32_t& outInterval, uint32_t& outMaxEntries) const {
+    outInterval = m_header.m_indexInterval;
+    outMaxEntries = m_header.m_maxIndexEntries;
+}

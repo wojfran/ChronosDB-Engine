@@ -35,7 +35,7 @@ protected:
 };
 
 TEST_F(DatabaseFlowTest, FullLifecyclePersistsSignalsSamplesAndRebuildsState) {
-	DatabaseCore db(1, 16);
+	DatabaseCore db;
 
 	ASSERT_TRUE(db.open(testPath.string()));
 	ASSERT_TRUE(db.isOpen());
@@ -89,7 +89,7 @@ TEST_F(DatabaseFlowTest, FullLifecyclePersistsSignalsSamplesAndRebuildsState) {
 	EXPECT_FALSE(db.isOpen());
 	ASSERT_TRUE(std::filesystem::exists(testPath));
 
-	DatabaseCore reopened(1, 16);
+	DatabaseCore reopened;
 	ASSERT_TRUE(reopened.open(testPath.string()));
 	ASSERT_TRUE(reopened.isOpen());
 
@@ -116,7 +116,7 @@ TEST_F(DatabaseFlowTest, FullLifecyclePersistsSignalsSamplesAndRebuildsState) {
 }
 
 TEST_F(DatabaseFlowTest, ConcurrentWritesPersistAcrossReopen) {
-	DatabaseCore db(1, 64);
+	DatabaseCore db;
 
 	ASSERT_TRUE(db.open(testPath.string()));
 	ASSERT_TRUE(db.addSignal(1, "ChannelA", "u", SignalType::Double));
@@ -150,7 +150,7 @@ TEST_F(DatabaseFlowTest, ConcurrentWritesPersistAcrossReopen) {
 
 	db.close();
 
-	DatabaseCore reopened(1, 64);
+	DatabaseCore reopened;
 	ASSERT_TRUE(reopened.open(testPath.string()));
 
 	const SignalBase* reopenedA = reopened.getGlobalStats(1);

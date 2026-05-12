@@ -14,7 +14,8 @@ protected:
 	std::filesystem::path testPath;
 
 	void SetUp() override {
-		testPath = std::filesystem::temp_directory_path() / "chronosdb_e2e_flow.dat";
+		const ::testing::TestInfo* testInfo = ::testing::UnitTest::GetInstance()->current_test_info();
+		testPath = std::filesystem::temp_directory_path() / (std::string("chronosdb_e2e_") + testInfo->name() + ".dat");
 		if (std::filesystem::exists(testPath)) {
 			std::filesystem::remove(testPath);
 		}
@@ -112,4 +113,58 @@ TEST_F(DatabaseFlowTest, FullLifecyclePersistsSignalsSamplesAndRebuildsState) {
 	EXPECT_DOUBLE_EQ(reopenedRangeStats->getAverage(), 25.0);
 
 	EXPECT_FALSE(reopened.addSignal(1, "Temperature", "C", SignalType::Double));
+}
+
+TEST_F(DatabaseFlowTest, ConcurrentWritesPersistAcrossReopen) {
+	DatabaseCore db(1, 64);
+
+	ASSERT_TRUE(db.open(testPath.string()));
+	ASSERT_TRUE(db.addSignal(1, "ChannelA", "u", SignalType::Double));
+	ASSERT_TRUE(db.addSignal(2, "ChannelB", "u", SignalType::Double));
+
+	constexpr int sampleCountPerThread = 250;
+
+	std::thread writerA([&]() {
+		for (int i = 0; i < sampleCountPerThread; ++i) {
+			db.append(1, 1.0);
+		}
+	});
+
+	std::thread writerB([&]() {
+		for (int i = 0; i < sampleCountPerThread; ++i) {
+			db.append(2, 2.0);
+		}
+	});
+
+	writerA.join();
+	writerB.join();
+
+	const SignalBase* statsA = db.getGlobalStats(1);
+	const SignalBase* statsB = db.getGlobalStats(2);
+	ASSERT_NE(statsA, nullptr);
+	ASSERT_NE(statsB, nullptr);
+	EXPECT_EQ(statsA->getCount(), sampleCountPerThread);
+	EXPECT_EQ(statsB->getCount(), sampleCountPerThread);
+	EXPECT_DOUBLE_EQ(statsA->getAverage(), 1.0);
+	EXPECT_DOUBLE_EQ(statsB->getAverage(), 2.0);
+
+	db.close();
+
+	DatabaseCore reopened(1, 64);
+	ASSERT_TRUE(reopened.open(testPath.string()));
+
+	const SignalBase* reopenedA = reopened.getGlobalStats(1);
+	const SignalBase* reopenedB = reopened.getGlobalStats(2);
+	ASSERT_NE(reopenedA, nullptr);
+	ASSERT_NE(reopenedB, nullptr);
+	EXPECT_EQ(reopenedA->getCount(), sampleCountPerThread);
+	EXPECT_EQ(reopenedB->getCount(), sampleCountPerThread);
+	EXPECT_DOUBLE_EQ(reopenedA->getSum(), 250.0);
+	EXPECT_DOUBLE_EQ(reopenedB->getSum(), 500.0);
+	EXPECT_DOUBLE_EQ(reopenedA->getAverage(), 1.0);
+	EXPECT_DOUBLE_EQ(reopenedB->getAverage(), 2.0);
+	EXPECT_DOUBLE_EQ(reopenedA->getMin(), 1.0);
+	EXPECT_DOUBLE_EQ(reopenedA->getMax(), 1.0);
+	EXPECT_DOUBLE_EQ(reopenedB->getMin(), 2.0);
+	EXPECT_DOUBLE_EQ(reopenedB->getMax(), 2.0);
 }

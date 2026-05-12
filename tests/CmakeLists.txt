@@ -30,3 +30,16 @@ target_link_libraries(unit_tests
 
 include(GoogleTest)
 gtest_discover_tests(unit_tests)
+
+add_executable(integration_tests
+  integration/test_db_flow.cpp
+)
+
+target_link_libraries(integration_tests
+  PRIVATE
+    gtest_main
+    common
+    chronosdb_core
+)
+
+gtest_discover_tests(integration_tests)

@@ -25,4 +25,6 @@ __pycache__/
 *.py[cod]
 .venv/
 
+.github/
+
 exam_preparation/

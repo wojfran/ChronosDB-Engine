@@ -6,10 +6,14 @@
 class DatabaseCore;
 
 struct BenchmarkResult {
-    double writeTimeMs = 0.0;
-    double readTimeMs = 0.0;
-    uint64_t fileSize = 0;
-    double throughput = 0.0;
+    struct Metrics {
+        double writeTimeMs = 0.0;
+        double readTimeMs = 0.0;
+        uint64_t fileSize = 0;
+        double throughput = 0.0;
+    };
+    Metrics chronosDb;
+    Metrics sqliteDb;
 };
 
 struct Sample;
@@ -25,8 +29,13 @@ private:
     void setupSQLiteDb(uint32_t numChannels);
     void cleanupChronosDb();
     void cleanupSQLiteDb();
-    std::vector<Sample> generateSamples(uint32_t numSamples, uint32_t numChannels, uint32_t freq);
+    void generateSamples(uint32_t numSamples, uint32_t numChannels, uint32_t freq);
     uint64_t getFileSize(const std::string& path) const;
+
+    std::vector<Sample> m_benchmarkData;
+    uint32_t m_readQueryChannel = 0;
+    int64_t m_readQueryT1 = 0;
+    int64_t m_readQueryT2 = 0;
 
 public:
     BenchmarkEngine(DatabaseCore& db);

@@ -12,6 +12,8 @@ add_executable(chronosdb_gui
     include/gui/LogController.h
     src/SignalListController.cpp
     include/gui/SignalListController.h
+    src/ChartController.cpp
+    include/gui/ChartController.h
 )
 
 target_include_directories(chronosdb_gui PUBLIC include)

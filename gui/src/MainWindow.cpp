@@ -2,11 +2,15 @@
 #include <QMenuBar>
 #include <QLabel>
 #include <QSplitter>
+#include <cmath>
+#include <chrono>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_logger = new LogController(this);
     m_signalList = new SignalListController(this);
+    m_chart = new ChartController(this);
     setupUi();
+    injectDummyData();
 }
 
 MainWindow::~MainWindow() {
@@ -31,11 +35,7 @@ void MainWindow::setupUi() {
     // Right side uses a vertical splitter for the chart (top) and logs (bottom)
     QSplitter* rightSplitter = new QSplitter(Qt::Vertical, mainSplitter);
     
-    QLabel* chartPlaceholder = new QLabel("Chart Area (Phase 3)", rightSplitter);
-    chartPlaceholder->setAlignment(Qt::AlignCenter);
-    chartPlaceholder->setStyleSheet("background-color: #2b2b2b; color: white;");
-    
-    rightSplitter->addWidget(chartPlaceholder);
+    rightSplitter->addWidget(m_chart->getView());
     rightSplitter->addWidget(m_logger->getView());
     
     // Set initial sizing ratio (e.g. 70% chart, 30% logs)
@@ -52,5 +52,25 @@ void MainWindow::setupUi() {
     
     // Test the logger
     m_logger->appendLog("System Initialized.", LogLevel::Info);
-    m_logger->appendLog("Ready for Phase 3 charting...", LogLevel::Warning);
+    m_logger->appendLog("Phase 3 charting online.", LogLevel::Info);
+}
+
+void MainWindow::injectDummyData() {
+    std::vector<Sample> dummyData;
+    size_t pointCount = 100000;
+    dummyData.reserve(pointCount);
+    
+    int64_t startTs = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
+    
+    // Generate a massive 100k point sine wave with some noise to test downsampling
+    for (size_t i = 0; i < pointCount; ++i) {
+        int64_t ts = startTs + (i * 10); // 10ms intervals
+        double val = std::sin(i * 0.01) * 50.0 + 50.0;
+        // add tiny high-freq noise so min-max has something to catch
+        val += (i % 3 == 0) ? 2.0 : -2.0; 
+        dummyData.emplace_back(ts, 0, val, 0);
+    }
+    
+    m_chart->updatePlot(dummyData);
+    m_logger->appendLog(QString("Injected %1 points into chart, successfully downsampled.").arg(pointCount), LogLevel::Info);
 }

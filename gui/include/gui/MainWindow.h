@@ -2,6 +2,9 @@
 
 #include <QMainWindow>
 
+#include "gui/LogController.h"
+#include "gui/SignalListController.h"
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -11,4 +14,7 @@ public:
 
 private:
     void setupUi();
+    
+    LogController* m_logger;
+    SignalListController* m_signalList;
 };

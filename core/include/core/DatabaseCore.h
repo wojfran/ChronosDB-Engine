@@ -7,6 +7,7 @@
 #include <mutex>
 #include "common/SignalType.h"
 #include "common/Sample.h"
+#include "common/SignalDescriptor.h"
 
 // forward declaration pozwala na szybszą kompilację
 // (nie dodajemy plikó .h), jest to możliwe przez to że 
@@ -43,4 +44,7 @@ class DatabaseCore {
     bool isOpen() const;
     uint32_t getIndexInterval() const;
     size_t getIndexMaxEntries() const;
+    
+    std::vector<SignalDescriptor> getAllSignals() const;
+    std::vector<Sample> queryAllSamples(uint32_t id);
 };

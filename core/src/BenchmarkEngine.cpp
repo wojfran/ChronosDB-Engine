@@ -8,6 +8,7 @@
 #include <chrono>
 #include <random>
 #include <cstring>
+#include <iostream>
 
 namespace fs = std::filesystem;
 
@@ -107,8 +108,16 @@ uint64_t BenchmarkEngine::getFileSize(const std::string& path) const {
     return fs::file_size(path);
 }
 
-BenchmarkResult BenchmarkEngine::runComparison(uint32_t numSamples, uint32_t freq, uint32_t channels) {
+BenchmarkResult BenchmarkEngine::runComparison(uint32_t numSamples, uint32_t freq, uint32_t channels, std::function<void(const std::string&)> logCallback) {
     BenchmarkResult result;
+    
+    auto printLog = [&](const std::string& msg) {
+        if (logCallback) logCallback(msg);
+        else std::cout << msg << std::endl;
+    };
+    
+    printLog("Starting Benchmark Comparison...");
+    printLog("Generating " + std::to_string(numSamples) + " samples at " + std::to_string(freq) + "Hz across " + std::to_string(channels) + " channels...");
     
     generateSamples(numSamples, channels, freq);
     
@@ -123,20 +132,28 @@ BenchmarkResult BenchmarkEngine::runComparison(uint32_t numSamples, uint32_t fre
     }
     
     // Benchmark ChronosDB
+    printLog("Setup ChronosDB...");
     setupChronosDb(channels);
+    printLog("Running ChronosDB Write...");
     result.chronosDb.writeTimeMs = measureChronosDbWrite();
     result.chronosDb.fileSize = getFileSize(m_chronosDbPath);
     result.chronosDb.throughput = (numSamples * channels) / (result.chronosDb.writeTimeMs / 1000.0);
+    printLog("Running ChronosDB Read...");
     result.chronosDb.readTimeMs = measureChronosDbReadInterval();
     cleanupChronosDb();
     
     // Benchmark SQLite
+    printLog("Setup SQLite...");
     setupSQLiteDb(channels);
+    printLog("Running SQLite Write...");
     result.sqliteDb.writeTimeMs = measureSQLiteWrite();
     result.sqliteDb.fileSize = getFileSize(m_sqlitePath);
     result.sqliteDb.throughput = (numSamples * channels) / (result.sqliteDb.writeTimeMs / 1000.0);
+    printLog("Running SQLite Read...");
     result.sqliteDb.readTimeMs = measureSQLiteReadInterval();
     cleanupSQLiteDb();
+    
+    printLog("Benchmark Complete!");
     
     return result;
 }

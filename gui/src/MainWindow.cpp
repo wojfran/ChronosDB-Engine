@@ -2,15 +2,23 @@
 #include <QMenuBar>
 #include <QLabel>
 #include <QSplitter>
+#include <QFileDialog>
+#include <QtConcurrent>
+#include <QInputDialog>
+#include <QCoreApplication>
 #include <cmath>
 #include <chrono>
+#include "core/BenchmarkEngine.h"
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_logger = new LogController(this);
     m_signalList = new SignalListController(this);
     m_chart = new ChartController(this);
+    
+    connect(&m_queryWatcher, &QFutureWatcher<std::vector<Sample>>::finished, this, &MainWindow::onSignalDataLoaded);
+    connect(m_signalList, &SignalListController::signalSelected, this, &MainWindow::onSignalSelected);
+
     setupUi();
-    injectDummyData();
 }
 
 MainWindow::~MainWindow() {
@@ -22,9 +30,14 @@ void MainWindow::setupUi() {
 
     // Create a basic menu bar
     QMenu* fileMenu = menuBar()->addMenu("File");
-    fileMenu->addAction("Open Database...");
+    QAction* openAction = fileMenu->addAction("Open Database...");
+    connect(openAction, &QAction::triggered, this, &MainWindow::onOpenDatabase);
     fileMenu->addSeparator();
     fileMenu->addAction("Exit", this, &QWidget::close);
+    
+    QMenu* toolsMenu = menuBar()->addMenu("Tools");
+    QAction* benchAction = toolsMenu->addAction("Run Benchmark...");
+    connect(benchAction, &QAction::triggered, this, &MainWindow::onRunBenchmark);
 
     // Main layout uses a horizontal splitter
     QSplitter* mainSplitter = new QSplitter(Qt::Horizontal, this);
@@ -52,25 +65,93 @@ void MainWindow::setupUi() {
     
     // Test the logger
     m_logger->appendLog("System Initialized.", LogLevel::Info);
-    m_logger->appendLog("Phase 3 charting online.", LogLevel::Info);
+    m_logger->appendLog("Phase 4: Database Ready.", LogLevel::Info);
 }
 
-void MainWindow::injectDummyData() {
-    std::vector<Sample> dummyData;
-    size_t pointCount = 100000;
-    dummyData.reserve(pointCount);
+void MainWindow::onOpenDatabase() {
+    QString fileName = QFileDialog::getOpenFileName(this, "Open ChronosDB", "", "ChronosDB Files (*.dat);;All Files (*)");
+    if (fileName.isEmpty()) return;
     
-    int64_t startTs = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
+    m_logger->appendLog(QString("Opening database: %1").arg(fileName), LogLevel::Info);
     
-    // Generate a massive 100k point sine wave with some noise to test downsampling
-    for (size_t i = 0; i < pointCount; ++i) {
-        int64_t ts = startTs + (i * 10); // 10ms intervals
-        double val = std::sin(i * 0.01) * 50.0 + 50.0;
-        // add tiny high-freq noise so min-max has something to catch
-        val += (i % 3 == 0) ? 2.0 : -2.0; 
-        dummyData.emplace_back(ts, 0, val, 0);
+    try {
+        m_db.close();
+        m_db.open(fileName.toStdString());
+        
+        auto descriptors = m_db.getAllSignals();
+        m_signalList->populateList(descriptors);
+        m_logger->appendLog(QString("Loaded %1 signals.").arg(descriptors.size()), LogLevel::Info);
+    } catch (const std::exception& e) {
+        m_logger->appendLog(QString("Failed to open db: %1").arg(e.what()), LogLevel::Error);
+    }
+}
+
+void MainWindow::onSignalSelected(uint32_t id) {
+    if (m_queryWatcher.isRunning()) {
+        m_logger->appendLog("A query is already running, please wait.", LogLevel::Warning);
+        return;
     }
     
-    m_chart->updatePlot(dummyData);
-    m_logger->appendLog(QString("Injected %1 points into chart, successfully downsampled.").arg(pointCount), LogLevel::Info);
+    m_logger->appendLog(QString("Querying all data for signal ID %1...").arg(id), LogLevel::Info);
+    
+    // Run the query asynchronously
+    QFuture<std::vector<Sample>> future = QtConcurrent::run([this, id]() -> std::vector<Sample> {
+        return m_db.queryAllSamples(id);
+    });
+    
+    m_queryWatcher.setFuture(future);
+}
+
+void MainWindow::onSignalDataLoaded() {
+    std::vector<Sample> data = m_queryWatcher.result();
+    m_logger->appendLog(QString("Query completed. Fetched %1 samples. Rendering...").arg(data.size()), LogLevel::Info);
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    m_chart->updatePlot(data);
+    auto end = std::chrono::high_resolution_clock::now();
+    
+    double ms = std::chrono::duration<double, std::milli>(end - start).count();
+    m_logger->appendLog(QString("Rendered in %1 ms.").arg(ms), LogLevel::Info);
+}
+
+void MainWindow::onRunBenchmark() {
+    bool ok;
+    int channels = QInputDialog::getInt(this, "Benchmark", "Number of Channels:", 100, 1, 10000, 1, &ok);
+    if (!ok) return;
+    
+    int freq = QInputDialog::getInt(this, "Benchmark", "Frequency (Hz):", 100, 1, 10000, 1, &ok);
+    if (!ok) return;
+    
+    int samples = QInputDialog::getInt(this, "Benchmark", "Number of Samples per Channel:", 100000, 1000, 10000000, 1000, &ok);
+    if (!ok) return;
+
+    m_logger->appendLog("Starting Benchmark Thread...", LogLevel::Info);
+    
+    QThreadPool::globalInstance()->start([this, samples, channels, freq]() {
+        DatabaseCore tempDb;
+        BenchmarkEngine engine(tempDb);
+        
+        auto logCallback = [this](const std::string& msg) {
+            QString qmsg = QString::fromStdString(msg);
+            QMetaObject::invokeMethod(this, [this, qmsg]() {
+                m_logger->appendLog(qmsg, LogLevel::Warning); // Warning color stands out
+            });
+        };
+        
+        BenchmarkResult res = engine.runComparison(samples, freq, channels, logCallback);
+        
+        QMetaObject::invokeMethod(this, [this, res]() {
+            double writeSpeedup = res.sqliteDb.writeTimeMs / std::max(0.001, res.chronosDb.writeTimeMs);
+            double readSpeedup = res.sqliteDb.readTimeMs / std::max(0.001, res.chronosDb.readTimeMs);
+            double storageRatio = static_cast<double>(res.sqliteDb.fileSize) / std::max(1.0, static_cast<double>(res.chronosDb.fileSize));
+
+            m_logger->appendLog(QString("--- Benchmark Results ---"), LogLevel::Info);
+            m_logger->appendLog(QString("Write Time: ChronosDB %1 ms | SQLite %2 ms (Speedup: %3x)")
+                .arg(res.chronosDb.writeTimeMs, 0, 'f', 2).arg(res.sqliteDb.writeTimeMs, 0, 'f', 2).arg(writeSpeedup, 0, 'f', 2), LogLevel::Info);
+            m_logger->appendLog(QString("Read Time:  ChronosDB %1 ms | SQLite %2 ms (Speedup: %3x)")
+                .arg(res.chronosDb.readTimeMs, 0, 'f', 2).arg(res.sqliteDb.readTimeMs, 0, 'f', 2).arg(readSpeedup, 0, 'f', 2), LogLevel::Info);
+            m_logger->appendLog(QString("Storage:    ChronosDB %1 MB | SQLite %2 MB (Efficiency: %3x)")
+                .arg(res.chronosDb.fileSize / 1048576.0, 0, 'f', 2).arg(res.sqliteDb.fileSize / 1048576.0, 0, 'f', 2).arg(storageRatio, 0, 'f', 2), LogLevel::Info);
+        });
+    });
 }

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <functional>
 
 class DatabaseCore;
 
@@ -41,7 +42,7 @@ public:
     BenchmarkEngine(DatabaseCore& db);
     ~BenchmarkEngine();
     
-    BenchmarkResult runComparison(uint32_t numSamples, uint32_t freq, uint32_t channels);
+    BenchmarkResult runComparison(uint32_t numSamples, uint32_t freq, uint32_t channels, std::function<void(const std::string&)> logCallback = nullptr);
     double measureChronosDbWrite();
     double measureSQLiteWrite();
     double measureChronosDbReadInterval();

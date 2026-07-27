@@ -205,7 +205,32 @@ uint32_t DatabaseCore::getIndexInterval() const {
     return m_index ? m_index->getInterval() : DEFAULT_INDEX_INTERVAL;
 }
 
+
 size_t DatabaseCore::getIndexMaxEntries() const {
+    return DEFAULT_MAX_INDEX_ENTRIES; // To można w przyszłości pobierać z konfiguracji
+}
+
+std::vector<SignalDescriptor> DatabaseCore::getAllSignals() const {
     std::lock_guard<std::mutex> lock(m_dbMutex);
-    return m_index ? m_index->getMaxEntries() : DEFAULT_MAX_INDEX_ENTRIES;
+    std::vector<SignalDescriptor> descriptors;
+    for (const auto& pair : m_signals) {
+        const auto& sig = pair.second;
+        SignalDescriptor desc;
+        desc.m_id = sig->getId();
+        std::strncpy(desc.m_name, sig->getName().c_str(), sizeof(desc.m_name) - 1);
+        desc.m_name[sizeof(desc.m_name) - 1] = '\0';
+        std::strncpy(desc.m_unit, sig->getUnit().c_str(), sizeof(desc.m_unit) - 1);
+        desc.m_unit[sizeof(desc.m_unit) - 1] = '\0';
+        desc.m_type = sig->getType();
+        descriptors.push_back(desc);
+    }
+    return descriptors;
+}
+
+std::vector<Sample> DatabaseCore::queryAllSamples(uint32_t id) {
+    std::lock_guard<std::mutex> lock(m_dbMutex);
+    auto it = m_signals.find(id);
+    if (it == m_signals.end()) return {};
+    
+    return getRange(id, 0, INT64_MAX);
 }

@@ -38,6 +38,7 @@ class DatabaseCore {
     void close();
     bool addSignal(uint32_t id, std::string name, std::string unit, SignalType type);
     void append(uint32_t id, double value, uint8_t status = 0);
+    void append(uint32_t id, int64_t timestamp, double value, uint8_t status = 0);
     const SignalBase* getGlobalStats(uint32_t id) const;
     std::unique_ptr<SignalBase> getStatsInRange(uint32_t id, int64_t t1, int64_t t2);
     std::vector<Sample> getRange(uint32_t id, int64_t t1, int64_t t2);

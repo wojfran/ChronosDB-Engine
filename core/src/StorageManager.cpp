@@ -109,6 +109,17 @@ bool StorageManager::readNext(Sample& outSample) {
     return false;
 }
 
+size_t StorageManager::readSamples(Sample* outBuffer, size_t count) {
+    if (m_fileStream.read(reinterpret_cast<char*>(outBuffer), count * sizeof(Sample))) {
+        return count; // Successfully read all requested samples
+    } else {
+        // If it fails (e.g., EOF reached before full count), return how many were actually read
+        size_t bytesRead = m_fileStream.gcount();
+        m_fileStream.clear(); // Clear EOF flag so subsequent operations can still work if needed
+        return bytesRead / sizeof(Sample);
+    }
+}
+
 void StorageManager::setIndexConfig(uint32_t interval, uint32_t maxEntries) {
     m_header.m_indexInterval = interval;
     m_header.m_maxIndexEntries = maxEntries;

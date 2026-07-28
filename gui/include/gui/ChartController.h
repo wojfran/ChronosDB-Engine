@@ -18,6 +18,7 @@ public:
     
     QWidget* getView() const;
     void updatePlot(const std::vector<Sample>& data);
+    void zoomOutToOriginal();
 
 private slots:
     void onScrollBarMoved(int value);
@@ -27,6 +28,9 @@ private slots:
 
 private:
     std::vector<Sample> applyDownsampling(const std::vector<Sample>& data, size_t threshold = 4000) const;
+    void redrawVisibleData();
+
+    std::vector<Sample> m_rawData;
 
     QWidget* m_container;
     QChartView* m_chartView;

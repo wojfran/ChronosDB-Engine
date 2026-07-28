@@ -65,19 +65,22 @@ bool DatabaseCore::addSignal(uint32_t id, std::string name, std::string unit, Si
 }
 
 void DatabaseCore::append(uint32_t id, double value, uint8_t status) {
+    int64_t ts = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    append(id, ts, value, status);
+}
+
+void DatabaseCore::append(uint32_t id, int64_t timestamp, double value, uint8_t status) {
     std::lock_guard<std::mutex> lock(m_dbMutex);
     
     auto it = m_signals.find(id);
     if (it == m_signals.end() || !m_storage) return;
 
-    int64_t ts = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count();
-
-    Sample s(ts, id, value, status);
+    Sample s(timestamp, id, value, status);
 
     uint64_t offset = m_storage->writeRecord(s);
 
-    m_index->addEntry(ts, offset);
+    m_index->addEntry(timestamp, offset);
     it->second->processSample(s);
 }
 
@@ -112,12 +115,23 @@ std::unique_ptr<SignalBase> DatabaseCore::getStatsInRange(uint32_t id, int64_t t
     uint64_t startOffset = m_index->getClosestOffset(t1, DATA_OFFSET);
     m_storage->seekTo(startOffset);
 
-    Sample out; 
-    while (m_storage->readNext(out)) {
-        if (out.getTimestamp() > t2) break;
-        if (out.getSignalId() == id && out.getTimestamp() >= t1) {
-            rangeStats->processSample(out);
+    std::vector<Sample> chunk(4096);
+    bool done = false;
+    while (!done) {
+        size_t readCount = m_storage->readSamples(chunk.data(), chunk.size());
+        if (readCount == 0) break;
+        
+        for (size_t i = 0; i < readCount; ++i) {
+            const Sample& out = chunk[i];
+            if (out.getTimestamp() > t2) {
+                done = true;
+                break;
+            }
+            if (out.getSignalId() == id && out.getTimestamp() >= t1) {
+                rangeStats->processSample(out);
+            }
         }
+        if (readCount < chunk.size()) break; // EOF
     }
     return rangeStats;
 }
@@ -133,12 +147,23 @@ std::vector<Sample> DatabaseCore::getRange(uint32_t id, int64_t t1, int64_t t2) 
     uint64_t startOffset = m_index->getClosestOffset(t1, DATA_OFFSET);
     m_storage->seekTo(startOffset);
 
-    Sample out; 
-    while (m_storage->readNext(out)) {
-        if (out.getTimestamp() > t2) break;
-        if (out.getSignalId() == id && out.getTimestamp() >= t1) {
-            results.push_back(out);
+    std::vector<Sample> chunk(4096);
+    bool done = false;
+    while (!done) {
+        size_t readCount = m_storage->readSamples(chunk.data(), chunk.size());
+        if (readCount == 0) break;
+
+        for (size_t i = 0; i < readCount; ++i) {
+            const Sample& out = chunk[i];
+            if (out.getTimestamp() > t2) {
+                done = true;
+                break;
+            }
+            if (out.getSignalId() == id && out.getTimestamp() >= t1) {
+                results.push_back(out);
+            }
         }
+        if (readCount < chunk.size()) break; // EOF
     }
     return results;
 }
@@ -228,9 +253,6 @@ std::vector<SignalDescriptor> DatabaseCore::getAllSignals() const {
 }
 
 std::vector<Sample> DatabaseCore::queryAllSamples(uint32_t id) {
-    std::lock_guard<std::mutex> lock(m_dbMutex);
-    auto it = m_signals.find(id);
-    if (it == m_signals.end()) return {};
-    
+    // getRange will handle the locking and validation
     return getRange(id, 0, INT64_MAX);
 }

@@ -9,6 +9,7 @@
 #include <cmath>
 #include <chrono>
 #include "core/BenchmarkEngine.h"
+#include <QFile>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_logger = new LogController(this);
@@ -32,6 +33,8 @@ void MainWindow::setupUi() {
     QMenu* fileMenu = menuBar()->addMenu("File");
     QAction* openAction = fileMenu->addAction("Open Database...");
     connect(openAction, &QAction::triggered, this, &MainWindow::onOpenDatabase);
+    QAction* generateAction = fileMenu->addAction("Generate Test Database...");
+    connect(generateAction, &QAction::triggered, this, &MainWindow::onGenerateDatabase);
     fileMenu->addSeparator();
     fileMenu->addAction("Exit", this, &QWidget::close);
     
@@ -84,6 +87,69 @@ void MainWindow::onOpenDatabase() {
     } catch (const std::exception& e) {
         m_logger->appendLog(QString("Failed to open db: %1").arg(e.what()), LogLevel::Error);
     }
+}
+
+void MainWindow::onGenerateDatabase() {
+    QString fileName = QFileDialog::getSaveFileName(this, "Generate Test Database", "", "ChronosDB Files (*.dat);;All Files (*)");
+    if (fileName.isEmpty()) return;
+
+    bool ok;
+    int durationSec = QInputDialog::getInt(this, "Generate", "Duration (seconds):", 60, 1, 3600, 1, &ok);
+    if (!ok) return;
+
+    int freq = QInputDialog::getInt(this, "Generate", "Sampling Frequency (Hz):", 1000, 1, 100000, 100, &ok);
+    if (!ok) return;
+
+    int numSignals = QInputDialog::getInt(this, "Generate", "Number of Signals:", 4, 1, 100, 1, &ok);
+    if (!ok) return;
+
+    m_logger->appendLog(QString("Generating test database with %1 signals for %2s at %3 Hz...").arg(numSignals).arg(durationSec).arg(freq), LogLevel::Info);
+
+    QThreadPool::globalInstance()->start([this, fileName, durationSec, freq, numSignals]() {
+        // Delete the existing file to prevent appending old runs which causes timeline corruption
+        QFile::remove(fileName);
+
+        DatabaseCore tempDb;
+        if (!tempDb.open(fileName.toStdString())) {
+            QMetaObject::invokeMethod(this, [this]() {
+                m_logger->appendLog("Failed to create test database file.", LogLevel::Error);
+            });
+            return;
+        }
+
+        for (int i = 0; i < numSignals; ++i) {
+            tempDb.addSignal(i, "Signal_" + std::to_string(i), "V", SignalType::Double);
+        }
+
+        int totalSamples = durationSec * freq;
+        double dt = 1.0 / freq;
+
+        for (int s = 0; s < totalSamples; ++s) {
+            double t = s * dt;
+            int64_t timestampMs = static_cast<int64_t>(t * 1000.0);
+            
+            for (int i = 0; i < numSignals; ++i) {
+                double phase = (i * 3.14159) / numSignals;
+                double val = std::sin(2 * 3.14159 * (i + 1) * t + phase);
+                if (i % 2 == 1) {
+                    val += 0.2 * ((rand() % 100) / 100.0 - 0.5); // noise
+                }
+                tempDb.append(i, timestampMs, val);
+            }
+        }
+        
+        tempDb.close();
+
+        QMetaObject::invokeMethod(this, [this, fileName]() {
+            m_logger->appendLog("Database generation complete. Loading...", LogLevel::Info);
+            m_db.close();
+            m_db.open(fileName.toStdString());
+            
+            auto descriptors = m_db.getAllSignals();
+            m_signalList->populateList(descriptors);
+            m_logger->appendLog(QString("Loaded %1 signals.").arg(descriptors.size()), LogLevel::Info);
+        });
+    });
 }
 
 void MainWindow::onSignalSelected(uint32_t id) {

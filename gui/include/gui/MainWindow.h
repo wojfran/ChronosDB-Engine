@@ -19,6 +19,7 @@ public:
 
 private slots:
     void onOpenDatabase();
+    void onGenerateDatabase();
     void onRunBenchmark();
     void onSignalSelected(uint32_t id);
     void onSignalDataLoaded();

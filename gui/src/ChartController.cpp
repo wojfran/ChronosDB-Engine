@@ -5,20 +5,26 @@
 
 class ChartViewEventFilter : public QObject {
 public:
-    ChartViewEventFilter(QChart* chart, QObject* parent = nullptr) : QObject(parent), m_chart(chart) {}
+    ChartViewEventFilter(ChartController* controller, QObject* parent = nullptr) : QObject(parent), m_controller(controller) {}
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override {
-        if (event->type() == QEvent::MouseButtonPress) {
+        if (event->type() == QEvent::MouseButtonPress || 
+            event->type() == QEvent::MouseButtonRelease || 
+            event->type() == QEvent::MouseButtonDblClick) {
+            
             QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
             if (mouseEvent->button() == Qt::RightButton) {
-                m_chart->zoomReset();
+                if (event->type() == QEvent::MouseButtonPress) {
+                    m_controller->zoomOutToOriginal();
+                }
+                // Consume the event so QChartView doesn't trigger its built-in right-click zoom out
                 return true;
             }
         }
         return QObject::eventFilter(obj, event);
     }
 private:
-    QChart* m_chart;
+    ChartController* m_controller;
 };
 
 ChartController::ChartController(QObject* parent) : QObject(parent), m_absoluteMinX(0), m_absoluteMaxX(0), m_absoluteMinY(0.0), m_absoluteMaxY(0.0), m_isScrolling(false), m_isScrollingY(false) {
@@ -47,9 +53,11 @@ ChartController::ChartController(QObject* parent) : QObject(parent), m_absoluteM
     m_chartView = new QChartView(m_chart);
     m_chartView->setRenderHint(QPainter::Antialiasing);
     
+    // Custom event filter for zooming out
+    m_chartView->viewport()->installEventFilter(new ChartViewEventFilter(this, m_chartView));
+    
     // Enable zooming
     m_chartView->setRubberBand(QChartView::RectangleRubberBand);
-    m_chartView->installEventFilter(new ChartViewEventFilter(m_chart, m_chartView));
     
     m_scrollBar = new QScrollBar(Qt::Horizontal);
     m_scrollBar->setEnabled(false); // Disabled until data is loaded
@@ -73,67 +81,43 @@ QWidget* ChartController::getView() const {
 }
 
 std::vector<Sample> ChartController::applyDownsampling(const std::vector<Sample>& data, size_t threshold) const {
-    if (data.size() <= threshold) return data;
+    // User requested to remove downsampling completely
+    return data;
+}
 
-    std::vector<Sample> result;
-    result.reserve(threshold);
-
-    // Each bucket generates 2 points (min and max)
-    size_t numBuckets = threshold / 2;
-    size_t pointsPerBucket = data.size() / numBuckets;
-
-    for (size_t b = 0; b < numBuckets; ++b) {
-        size_t startIdx = b * pointsPerBucket;
-        size_t endIdx = (b == numBuckets - 1) ? data.size() : startIdx + pointsPerBucket;
-
-        if (startIdx >= endIdx) continue;
-
-        size_t minIdx = startIdx;
-        size_t maxIdx = startIdx;
-
-        for (size_t i = startIdx + 1; i < endIdx; ++i) {
-            if (data[i].getValue() < data[minIdx].getValue()) minIdx = i;
-            if (data[i].getValue() > data[maxIdx].getValue()) maxIdx = i;
-        }
-
-        // Add them in chronological order
-        if (minIdx <= maxIdx) {
-            result.push_back(data[minIdx]);
-            if (minIdx != maxIdx) result.push_back(data[maxIdx]);
-        } else {
-            result.push_back(data[maxIdx]);
-            result.push_back(data[minIdx]);
-        }
-    }
-
-    return result;
+void ChartController::zoomOutToOriginal() {
+    if (m_absoluteMaxX <= m_absoluteMinX) return;
+    
+    // Explicitly enforce our absolute ranges to fit the full signal
+    m_axisX->setRange(m_absoluteMinX, m_absoluteMaxX);
+    m_axisY->setRange(m_absoluteMinY, m_absoluteMaxY);
 }
 
 void ChartController::updatePlot(const std::vector<Sample>& data) {
-    m_series->clear();
+    if (data.empty()) {
+        m_series->clear();
+        m_rawData.clear();
+        return;
+    }
 
-    if (data.empty()) return;
-
-    std::vector<Sample> plotData = applyDownsampling(data);
-
-    QList<QPointF> points;
-    points.reserve(plotData.size());
+    m_rawData = data;
     
     double minY = std::numeric_limits<double>::max();
     double maxY = std::numeric_limits<double>::lowest();
-    int64_t minX = plotData.front().getTimestamp();
-    int64_t maxX = plotData.back().getTimestamp();
+    int64_t minX = data.front().getTimestamp();
+    int64_t maxX = data.back().getTimestamp();
 
-    for (const auto& sample : plotData) {
+    QList<QPointF> points;
+    points.reserve(data.size());
+
+    // Find global min and max Y for the absolute bounds, and populate points
+    for (const auto& sample : data) {
         double val = sample.getValue();
         points.append(QPointF(static_cast<double>(sample.getTimestamp()), val));
         if (val < minY) minY = val;
         if (val > maxY) maxY = val;
     }
 
-    m_series->replace(points);
-
-    // Add some padding to Y axis
     double padding = (maxY - minY) * 0.1;
     if (padding == 0.0) padding = 1.0;
     
@@ -142,45 +126,54 @@ void ChartController::updatePlot(const std::vector<Sample>& data) {
     m_absoluteMinY = minY - padding;
     m_absoluteMaxY = maxY + padding;
     
+    m_series->replace(points);
+
     m_scrollBar->setEnabled(true);
     m_scrollBarY->setEnabled(true);
     
-    m_axisY->setRange(m_absoluteMinY, m_absoluteMaxY); // This will trigger onAxisYRangeChanged
-    m_axisX->setRange(minX, maxX); // This will trigger onAxisXRangeChanged and set scrollbar
+    m_axisY->setRange(m_absoluteMinY, m_absoluteMaxY);
+    m_axisX->setRange(minX, maxX); // This triggers onAxisXRangeChanged
+}
+
+void ChartController::redrawVisibleData() {
+    // Downsampling is removed, so we no longer need to dynamically redraw the data when zooming.
+    // The entire dataset is already in m_series.
 }
 
 void ChartController::onAxisXRangeChanged(qreal min, qreal max) {
-    if (m_isScrolling) return; // Prevent infinite feedback loop
-    
     if (m_absoluteMaxX <= m_absoluteMinX) return; // No valid range
     
-    // Calculate the current width of the view relative to the total range
-    double currentWidth = max - min;
-    double totalWidth = static_cast<double>(m_absoluteMaxX - m_absoluteMinX);
-    
-    // Update scrollbar page step (how much is visible) and range
-    // Let's use 1000 as the scrollbar max value for smooth scrolling
-    const int scrollBarMax = 10000;
-    
-    if (currentWidth >= totalWidth * 0.99) { // zoomed all the way out
-        m_scrollBar->setRange(0, 0);
-        return;
+    // Only update scrollbar geometry if we're not currently scrolling via the scrollbar
+    if (!m_isScrolling) {
+        // Calculate the current width of the view relative to the total range
+        double currentWidth = max - min;
+        double totalWidth = static_cast<double>(m_absoluteMaxX - m_absoluteMinX);
+        
+        // Update scrollbar page step (how much is visible) and range
+        const int scrollBarMax = 10000;
+        
+        if (currentWidth >= totalWidth * 0.99) { // zoomed all the way out
+            m_scrollBar->setRange(0, 0);
+        } else {
+            double visibleRatio = currentWidth / totalWidth;
+            int pageStep = static_cast<int>(scrollBarMax * visibleRatio);
+            m_scrollBar->setPageStep(pageStep);
+            
+            int maximum = scrollBarMax - pageStep;
+            m_scrollBar->setRange(0, maximum);
+            
+            // Set the current position based on 'min' relative to m_absoluteMinX
+            double positionRatio = (min - m_absoluteMinX) / (totalWidth - currentWidth);
+            int value = static_cast<int>(maximum * positionRatio);
+            
+            m_isScrolling = true;
+            m_scrollBar->setValue(value);
+            m_isScrolling = false;
+        }
     }
-    
-    double visibleRatio = currentWidth / totalWidth;
-    int pageStep = static_cast<int>(scrollBarMax * visibleRatio);
-    m_scrollBar->setPageStep(pageStep);
-    
-    int maximum = scrollBarMax - pageStep;
-    m_scrollBar->setRange(0, maximum);
-    
-    // Set the current position based on 'min' relative to m_absoluteMinX
-    double positionRatio = (min - m_absoluteMinX) / (totalWidth - currentWidth);
-    int value = static_cast<int>(maximum * positionRatio);
-    
-    m_isScrolling = true;
-    m_scrollBar->setValue(value);
-    m_isScrolling = false;
+
+    // ALWAYS redraw the high-resolution data for the new X range
+    redrawVisibleData();
 }
 
 void ChartController::onScrollBarMoved(int value) {

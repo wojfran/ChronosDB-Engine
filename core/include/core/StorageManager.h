@@ -23,6 +23,7 @@ class StorageManager {
     uint64_t writeRecord(const Sample& s);
     void seekTo(uint64_t offset);
     bool readNext(Sample& outSample);
+    size_t readSamples(Sample* outBuffer, size_t count);
     void flush();
     void setIndexConfig(uint32_t interval, uint32_t maxEntries);
     void getIndexConfig(uint32_t& outInterval, uint32_t& outMaxEntries) const;

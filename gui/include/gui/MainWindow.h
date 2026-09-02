@@ -8,6 +8,11 @@
 #include "core/DatabaseCore.h"
 #include <QFutureWatcher>
 #include <vector>
+#include <QDateTimeEdit>
+#include <QSpinBox>
+#include <QTableWidget>
+#include <QLabel>
+#include <QPushButton>
 #include "common/Sample.h"
 
 /**
@@ -31,6 +36,8 @@ private slots:
     void onRunBenchmark();
     void onSignalSelected(uint32_t id);
     void onSignalDataLoaded();
+    void onChartRangeChanged(int64_t minMs, int64_t maxMs);
+    void onRangeInputsChanged();
 
 private:
     void setupUi();
@@ -41,4 +48,19 @@ private:
     
     DatabaseCore m_db;
     QFutureWatcher<std::vector<Sample>> m_queryWatcher;
+    uint32_t m_currentSignalId = 0;
+
+    // Range Selection
+    QPushButton* m_startTimeBtn;
+    QPushButton* m_endTimeBtn;
+    int64_t m_currentStartMs = 0;
+    int64_t m_currentEndMs = 0;
+
+    // Right Panel
+    QTableWidget* m_statsTable;
+    QSpinBox* m_benchChannels;
+    QSpinBox* m_benchFreq;
+    QSpinBox* m_benchSamples;
+    QPushButton* m_benchStartBtn;
+    QTableWidget* m_benchResultsTable;
 };

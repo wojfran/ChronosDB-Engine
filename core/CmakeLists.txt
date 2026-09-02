@@ -1,7 +1,8 @@
 add_library(chronosdb_core STATIC 
     src/DatabaseCore.cpp
     src/IndexProvider.cpp
-    src/StorageManager.cpp
+    src/BinaryStorageManager.cpp
+    src/JsonStorageManager.cpp
     src/BenchmarkEngine.cpp
 )
 

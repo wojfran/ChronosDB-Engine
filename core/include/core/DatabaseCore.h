@@ -12,13 +12,20 @@
 // forward declaration pozwala na szybszą kompilację
 // (nie dodajemy plikó .h), jest to możliwe przez to że 
 // używamy pointerów do tych klas 
-class StorageManager ;
-class IndexProvider ;
-class SignalBase ;
+class IStorageManager;
+class IndexProvider;
+class SignalBase;
 
+/**
+ * @class DatabaseCore
+ * @brief Core facade for the ChronosDB engine.
+ *
+ * Manages the high-level orchestration of storage engines, in-memory indexes,
+ * and signal statistics calculation. This is the primary interface for the GUI.
+ */
 class DatabaseCore {
     private:
-    std::unique_ptr<StorageManager> m_storage;
+    std::unique_ptr<IStorageManager> m_storage;
     std::unique_ptr<IndexProvider> m_index;
     std::unordered_map<uint32_t, std::unique_ptr<SignalBase>> m_signals;
     mutable std::mutex m_dbMutex;
@@ -36,7 +43,8 @@ class DatabaseCore {
     ~DatabaseCore();
     bool open(const std::string& path);
     void close();
-    bool addSignal(uint32_t id, std::string name, std::string unit, SignalType type);
+    bool addSignal(uint32_t id, const std::string& name, const std::string& unit, SignalType type);
+    bool updateSignalMetadata(uint32_t id, const std::string& name, const std::string& unit);
     void append(uint32_t id, double value, uint8_t status = 0);
     void append(uint32_t id, int64_t timestamp, double value, uint8_t status = 0);
     const SignalBase* getGlobalStats(uint32_t id) const;

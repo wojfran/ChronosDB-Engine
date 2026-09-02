@@ -1,5 +1,6 @@
 #include "core/DatabaseCore.h"
-#include "core/StorageManager.h"
+#include "core/BinaryStorageManager.h"
+#include "core/JsonStorageManager.h"
 #include "core/IndexProvider.h"
 #include "core/NumericSignal.h"
 #include <chrono>
@@ -15,7 +16,13 @@ DatabaseCore::~DatabaseCore() {
 
 bool DatabaseCore::open(const std::string& path) {
     std::lock_guard<std::mutex> lock(m_dbMutex);
-    m_storage = std::make_unique<StorageManager>(path);
+    
+    if (path.length() >= 5 && path.substr(path.length() - 5) == ".json") {
+        m_storage = std::make_unique<JsonStorageManager>(path);
+    } else {
+        m_storage = std::make_unique<BinaryStorageManager>(path);
+    }
+    
     if (m_storage) {
         loadIndexConfig();
         loadSignalFromHeader();
@@ -36,7 +43,7 @@ void DatabaseCore::close() {
     m_signals.clear();
 }
 
-bool DatabaseCore::addSignal(uint32_t id, std::string name, std::string unit, SignalType type) {
+bool DatabaseCore::addSignal(uint32_t id, const std::string& name, const std::string& unit, SignalType type) {
     std::lock_guard<std::mutex> lock(m_dbMutex);
 
     if (!m_storage || m_signals.count(id)) return false;
@@ -62,6 +69,22 @@ bool DatabaseCore::addSignal(uint32_t id, std::string name, std::string unit, Si
         return true;
     }
     return false;
+}
+
+bool DatabaseCore::updateSignalMetadata(uint32_t id, const std::string& name, const std::string& unit) {
+    std::lock_guard<std::mutex> lock(m_dbMutex);
+
+    if (!m_storage) return false;
+
+    auto it = m_signals.find(id);
+    if (it == m_signals.end()) return false;
+
+    // Update in-memory signal object
+    it->second->setName(name);
+    it->second->setUnit(unit);
+
+    // Update storage
+    return m_storage->updateSignalDescriptor(id, name, unit);
 }
 
 void DatabaseCore::append(uint32_t id, double value, uint8_t status) {

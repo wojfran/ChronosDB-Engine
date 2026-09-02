@@ -3,9 +3,20 @@
 #include <QString>
 
 SignalListController::SignalListController(QObject* parent) : QObject(parent) {
+    m_container = new QWidget();
+    QVBoxLayout* layout = new QVBoxLayout(m_container);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    m_openButton = new QPushButton("Select File");
+    layout->addWidget(m_openButton);
+
+    connect(m_openButton, &QPushButton::clicked, this, &SignalListController::openFileRequested);
+
     m_table = new QTableWidget();
-    m_table->setColumnCount(4);
-    m_table->setHorizontalHeaderLabels({"ID", "Name", "Unit", "Type"});
+    layout->addWidget(m_table);
+
+    m_table->setColumnCount(5);
+    m_table->setHorizontalHeaderLabels({"ID", "Name", "Unit", "Type", "Records"});
     
     // UI behavior
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -19,19 +30,19 @@ SignalListController::SignalListController(QObject* parent) : QObject(parent) {
 }
 
 QWidget* SignalListController::getView() const {
-    return m_table;
+    return m_container;
 }
 
-void SignalListController::populateList(const std::vector<SignalDescriptor>& descriptors) {
+void SignalListController::populateList(const std::vector<SignalInfo>& signalInfos) {
     m_table->blockSignals(true);
     clear();
-    m_table->setRowCount(descriptors.size());
+    m_table->setRowCount(signalInfos.size());
     
-    for (size_t i = 0; i < descriptors.size(); ++i) {
-        const auto& sig = descriptors[i];
+    for (size_t i = 0; i < signalInfos.size(); ++i) {
+        const auto& sig = signalInfos[i].descriptor;
         
         QTableWidgetItem* idItem = new QTableWidgetItem(QString::number(sig.m_id));
-        idItem->setData(Qt::UserRole, sig.m_id); // store ID secretly
+        idItem->setData(Qt::UserRole, sig.m_id); // store ID in UserRole
         
         QTableWidgetItem* nameItem = new QTableWidgetItem(QString(sig.m_name));
         QTableWidgetItem* unitItem = new QTableWidgetItem(QString(sig.m_unit));
@@ -46,9 +57,12 @@ void SignalListController::populateList(const std::vector<SignalDescriptor>& des
         }
         QTableWidgetItem* typeItem = new QTableWidgetItem(typeStr);
         
-        // Make ID and Type read-only
+        QTableWidgetItem* countItem = new QTableWidgetItem(QString::number(signalInfos[i].recordCount));
+
+        // Make ID, Type and Count read-only
         idItem->setFlags(idItem->flags() & ~Qt::ItemIsEditable);
         typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
+        countItem->setFlags(countItem->flags() & ~Qt::ItemIsEditable);
         
         // Make Name and Unit editable
         nameItem->setFlags(nameItem->flags() | Qt::ItemIsEditable);
@@ -58,6 +72,7 @@ void SignalListController::populateList(const std::vector<SignalDescriptor>& des
         m_table->setItem(i, 1, nameItem);
         m_table->setItem(i, 2, unitItem);
         m_table->setItem(i, 3, typeItem);
+        m_table->setItem(i, 4, countItem);
     }
     
     m_table->blockSignals(false);
@@ -69,7 +84,7 @@ void SignalListController::clear() {
 
 uint32_t SignalListController::getSelectedSignalId() const {
     int row = m_table->currentRow();
-    if (row < 0) return 0; // or some invalid id, but 0 might be valid
+    if (row < 0) return 0; // return 0 for invalid row
     
     QTableWidgetItem* idItem = m_table->item(row, 0);
     if (!idItem) return 0;

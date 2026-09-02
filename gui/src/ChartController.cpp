@@ -40,8 +40,9 @@ ChartController::ChartController(QObject* parent) : QObject(parent), m_absoluteM
     m_series = new QLineSeries();
     m_chart->addSeries(m_series);
 
-    m_axisX = new QValueAxis();
+    m_axisX = new QDateTimeAxis();
     m_axisX->setTitleText("Timestamp");
+    m_axisX->setFormat("yyyy-MM-dd HH:mm:ss.zzz");
     m_chart->addAxis(m_axisX, Qt::AlignBottom);
     m_series->attachAxis(m_axisX);
 
@@ -70,7 +71,7 @@ ChartController::ChartController(QObject* parent) : QObject(parent), m_absoluteM
     layout->addWidget(m_scrollBar, 1, 0);
     
     connect(m_scrollBar, &QScrollBar::valueChanged, this, &ChartController::onScrollBarMoved);
-    connect(m_axisX, &QValueAxis::rangeChanged, this, &ChartController::onAxisXRangeChanged);
+    connect(m_axisX, &QDateTimeAxis::rangeChanged, this, &ChartController::onAxisXRangeChanged);
     
     connect(m_scrollBarY, &QScrollBar::valueChanged, this, &ChartController::onScrollBarYMoved);
     connect(m_axisY, &QValueAxis::rangeChanged, this, &ChartController::onAxisYRangeChanged);
@@ -81,7 +82,7 @@ QWidget* ChartController::getView() const {
 }
 
 std::vector<Sample> ChartController::applyDownsampling(const std::vector<Sample>& data, size_t threshold) const {
-    // User requested to remove downsampling completely
+    // Downsampling is not needed for current dataset sizes
     return data;
 }
 
@@ -89,7 +90,7 @@ void ChartController::zoomOutToOriginal() {
     if (m_absoluteMaxX <= m_absoluteMinX) return;
     
     // Explicitly enforce our absolute ranges to fit the full signal
-    m_axisX->setRange(m_absoluteMinX, m_absoluteMaxX);
+    m_axisX->setRange(QDateTime::fromMSecsSinceEpoch(m_absoluteMinX), QDateTime::fromMSecsSinceEpoch(m_absoluteMaxX));
     m_axisY->setRange(m_absoluteMinY, m_absoluteMaxY);
 }
 
@@ -132,16 +133,46 @@ void ChartController::updatePlot(const std::vector<Sample>& data) {
     m_scrollBarY->setEnabled(true);
     
     m_axisY->setRange(m_absoluteMinY, m_absoluteMaxY);
-    m_axisX->setRange(minX, maxX); // This triggers onAxisXRangeChanged
+    m_axisX->setRange(QDateTime::fromMSecsSinceEpoch(minX), QDateTime::fromMSecsSinceEpoch(maxX));
 }
 
 void ChartController::redrawVisibleData() {
-    // Downsampling is removed, so we no longer need to dynamically redraw the data when zooming.
-    // The entire dataset is already in m_series.
+    // No dynamic redrawing needed as the entire dataset is loaded in m_series.
 }
 
-void ChartController::onAxisXRangeChanged(qreal min, qreal max) {
+void ChartController::setRange(int64_t min, int64_t max) {
+    if (m_absoluteMaxX <= m_absoluteMinX) return;
+    
+    // Clamp to valid boundaries
+    if (min < m_absoluteMinX) min = m_absoluteMinX;
+    if (max > m_absoluteMaxX) max = m_absoluteMaxX;
+    
+    if (min >= max) {
+        if (min >= m_absoluteMaxX) {
+            min = max - 1000; // 1 second diff
+        } else {
+            max = min + 1000;
+        }
+        if (min < m_absoluteMinX) min = m_absoluteMinX;
+        if (max > m_absoluteMaxX) max = m_absoluteMaxX;
+    }
+    
+    QDateTime newMin = QDateTime::fromMSecsSinceEpoch(min);
+    QDateTime newMax = QDateTime::fromMSecsSinceEpoch(max);
+    
+    if (m_axisX->min() == newMin && m_axisX->max() == newMax) {
+        // Range didn't change, force sync UI.
+        emit rangeChanged(min, max);
+    } else {
+        m_axisX->setRange(newMin, newMax);
+    }
+}
+
+void ChartController::onAxisXRangeChanged(QDateTime minDt, QDateTime maxDt) {
     if (m_absoluteMaxX <= m_absoluteMinX) return; // No valid range
+    
+    qreal min = minDt.toMSecsSinceEpoch();
+    qreal max = maxDt.toMSecsSinceEpoch();
     
     // Only update scrollbar geometry if we're not currently scrolling via the scrollbar
     if (!m_isScrolling) {
@@ -172,14 +203,15 @@ void ChartController::onAxisXRangeChanged(qreal min, qreal max) {
         }
     }
 
-    // ALWAYS redraw the high-resolution data for the new X range
     redrawVisibleData();
+    
+    emit rangeChanged(static_cast<int64_t>(min), static_cast<int64_t>(max));
 }
 
 void ChartController::onScrollBarMoved(int value) {
     if (m_isScrolling) return;
     
-    double currentWidth = m_axisX->max() - m_axisX->min();
+    double currentWidth = m_axisX->max().toMSecsSinceEpoch() - m_axisX->min().toMSecsSinceEpoch();
     double totalWidth = static_cast<double>(m_absoluteMaxX - m_absoluteMinX);
     
     // Calculate new min and max based on scrollbar position
@@ -192,7 +224,7 @@ void ChartController::onScrollBarMoved(int value) {
     double newMax = newMin + currentWidth;
     
     m_isScrolling = true;
-    m_axisX->setRange(newMin, newMax);
+    m_axisX->setRange(QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(newMin)), QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(newMax)));
     m_isScrolling = false;
 }
 

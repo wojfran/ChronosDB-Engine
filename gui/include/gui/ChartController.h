@@ -4,6 +4,8 @@
 #include <QChartView>
 #include <QLineSeries>
 #include <QValueAxis>
+#include <QDateTimeAxis>
+#include <QDateTime>
 #include <QScrollBar>
 #include <QGridLayout>
 #include <QWidget>
@@ -27,9 +29,15 @@ public:
     void updatePlot(const std::vector<Sample>& data);
     void zoomOutToOriginal();
 
+public slots:
+    void setRange(int64_t min, int64_t max);
+
+signals:
+    void rangeChanged(int64_t min, int64_t max);
+
 private slots:
     void onScrollBarMoved(int value);
-    void onAxisXRangeChanged(qreal min, qreal max);
+    void onAxisXRangeChanged(QDateTime min, QDateTime max);
     void onScrollBarYMoved(int value);
     void onAxisYRangeChanged(qreal min, qreal max);
 
@@ -43,7 +51,7 @@ private:
     QChartView* m_chartView;
     QChart* m_chart;
     QLineSeries* m_series;
-    QValueAxis* m_axisX;
+    QDateTimeAxis* m_axisX;
     QValueAxis* m_axisY;
     QScrollBar* m_scrollBar;
     QScrollBar* m_scrollBarY;

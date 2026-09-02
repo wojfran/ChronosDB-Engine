@@ -10,6 +10,14 @@
 #include <vector>
 #include "common/Sample.h"
 
+/**
+ * @class MainWindow
+ * @brief Main application window and orchestrator for the ChronosDB GUI.
+ *
+ * Coordinates the various sub-controllers (Chart, Signal List, Logger) and
+ * delegates asynchronous database tasks (like querying and benchmarking) to
+ * background threads to keep the UI responsive.
+ */
 class MainWindow : public QMainWindow {
     Q_OBJECT
 

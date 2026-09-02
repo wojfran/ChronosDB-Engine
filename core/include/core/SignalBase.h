@@ -4,6 +4,13 @@
 #include "common/Sample.h"
 #include "common/SignalType.h"
 
+/**
+ * @class SignalBase
+ * @brief Abstract base class representing a time-series signal.
+ *
+ * Defines the polymorphic interface for computing on-the-fly statistics
+ * (average, variance, integral) regardless of the underlying data type.
+ */
 class SignalBase {
 protected:
     uint32_t m_id;
@@ -16,7 +23,9 @@ public:
         : m_id(id), m_name(std::move(name)), m_unit(std::move(unit)) {}
     uint32_t getId() const { return m_id; }
     const std::string& getName() const { return m_name; }
+    void setName(const std::string& name) { m_name = name; }
     const std::string& getUnit() const { return m_unit; }
+    void setUnit(const std::string& unit) { m_unit = unit; }
     virtual SignalType getType() const = 0;
     virtual void processSample(const Sample& s) = 0;
     virtual void resetStatistics() = 0;

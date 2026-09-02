@@ -10,6 +10,13 @@
 #include <vector>
 #include "common/Sample.h"
 
+/**
+ * @class ChartController
+ * @brief Manages the time-series visualization using Qt Charts.
+ *
+ * Handles plotting raw data points, scaling, zooming, and scrolling. 
+ * Resolves the performance implications of drawing massive time-series datasets.
+ */
 class ChartController : public QObject {
     Q_OBJECT
 

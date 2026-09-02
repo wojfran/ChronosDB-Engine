@@ -5,6 +5,13 @@
 #include <cmath>
 #include "core/SignalBase.h"
 
+/**
+ * @class NumericSignal
+ * @brief Template implementation of SignalBase for numeric types.
+ *
+ * Implements real-time statistical calculations using Welford's algorithm
+ * to avoid numerical instability and overflow for long-running signals.
+ */
 template <typename T>
 class NumericSignal : public SignalBase {
     private:

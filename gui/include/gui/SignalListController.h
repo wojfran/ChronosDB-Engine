@@ -7,11 +7,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include "common/FileHeader.h"
-
-struct SignalInfo {
-    SignalDescriptor descriptor;
-    size_t recordCount;
-};
+#include "common/SignalInfo.h"
 
 /**
  * @class SignalListController

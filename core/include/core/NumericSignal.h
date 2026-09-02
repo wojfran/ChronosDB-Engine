@@ -1,41 +1,58 @@
 #pragma once
 #include <cstdint>
-// #include <string>
-// #include <limits>
 #include <cmath>
+#include <limits>
 #include "core/SignalBase.h"
+
+/**
+ * @file NumericSignal.h
+ * @brief Template implementation of SignalBase for computing numeric statistics.
+ */
 
 /**
  * @class NumericSignal
  * @brief Template implementation of SignalBase for numeric types.
  *
  * Implements real-time statistical calculations using Welford's algorithm
- * to avoid numerical instability and overflow for long-running signals.
+ * to avoid numerical instability and precision loss for long-running signals.
+ * 
+ * @tparam T The underlying numeric data type (e.g., double, float, int32_t).
  */
 template <typename T>
 class NumericSignal : public SignalBase {
-    private:
-    double m_sum = 0.0;
-    size_t m_count = 0;
-    size_t m_errorCount = 0;
+private:
+    double m_sum = 0.0;          /**< Accumulator for the sum of all values. */
+    size_t m_count = 0;          /**< Total number of processed samples. */
+    size_t m_errorCount = 0;     /**< Total number of samples with a non-zero status code. */
 
-    double m_mean = 0.0;
-    double m_m2 = 0.0;
+    double m_mean = 0.0;         /**< Current running mean calculated via Welford's algorithm. */
+    double m_m2 = 0.0;           /**< Sum of squares of differences from the current mean (Welford's). */
 
-    double m_integral = 0.0;
-    double m_lastValue = 0.0;
-    int64_t m_lastTimestamp = -1;
+    double m_integral = 0.0;     /**< Accumulated area under the curve (Trapezoidal integration). */
+    double m_lastValue = 0.0;    /**< Cached value of the previous sample for integration. */
+    int64_t m_lastTimestamp = -1;/**< Cached timestamp of the previous sample for integration. */
 
-    double m_min = std::numeric_limits<double>::max();
-    double m_max = std::numeric_limits<double>::lowest();
+    double m_min = std::numeric_limits<double>::max();     /**< Current global minimum. */
+    double m_max = std::numeric_limits<double>::lowest();  /**< Current global maximum. */
 
-    public:
+public:
+    /**
+     * @brief Constructs a NumericSignal object.
+     * @param id Signal ID.
+     * @param name Signal Name.
+     * @param unit Signal Unit.
+     */
     NumericSignal(uint32_t id, std::string name, std::string unit)
     : SignalBase(id, std::move(name), std::move(unit)) {}
 
-    // może po prostu trzymać to w atrybucie?
+    /**
+     * @brief Deduces the polymorphic SignalType enum at compile-time based on the template parameter.
+     * 
+     * Uses C++17 'if constexpr' to eliminate runtime branching.
+     * 
+     * @return SignalType The correct enum mapping for type T.
+     */
     SignalType getType() const override {
-        // constexpr sprawia że jest to ewaluowane w czsie kompilacji a nie w runtime
         if constexpr (std::is_same_v<T, double>) return SignalType::Double;
         else if constexpr (std::is_same_v<T, float>) return SignalType::Float;
         else if constexpr (std::is_same_v<T, int32_t>) return SignalType::Int32;
@@ -43,6 +60,13 @@ class NumericSignal : public SignalBase {
         return SignalType::Double;
     }
 
+    /**
+     * @brief Updates internal statistics models with a new sample.
+     * 
+     * Calculates Welford's mean/variance, trapezoidal integral, and updates min/max limits.
+     * 
+     * @param s The new sample.
+     */
     void processSample(const Sample& s) override {
         double val = s.getValue();
         m_count++;
@@ -52,7 +76,7 @@ class NumericSignal : public SignalBase {
             m_errorCount++;
         }
 
-        // algorytm Welforda
+        // Welford's algorithm for numerically stable variance calculation
         double delta = val - m_mean;
         m_mean += delta / m_count;
         double delta2 = val - m_mean;

@@ -12,17 +12,25 @@
  * @brief High-performance binary storage engine.
  *
  * Implements IStorageManager using a highly optimized, append-only binary file format.
- * Features an internal CircularBuffer to minimize disk I/O by writing in blocks.
+ * Features an internal CircularBuffer to minimize disk I/O overhead by writing data in blocks.
  */
 class BinaryStorageManager : public IStorageManager {
-    std::fstream m_fileStream;
-    CircularBuffer<Sample> m_buffer;
-    FileHeader m_header;
-    uint64_t m_fileSize = 0;
-    const uint64_t m_dataOffset = 65536;
+    std::fstream m_fileStream;            /**< Internal file stream for reading/writing binary data. */
+    CircularBuffer<Sample> m_buffer;      /**< Write-buffer caching samples before flushing to disk. */
+    FileHeader m_header;                  /**< Local copy of the file's global metadata header. */
+    uint64_t m_fileSize = 0;              /**< Tracks the current size of the file on disk. */
+    const uint64_t m_dataOffset = 65536;  /**< Fixed offset (64KB) where actual sample data begins. */
 
-    public:
+public:
+    /**
+     * @brief Constructs a new BinaryStorageManager for the given path.
+     * @param path The absolute or relative path to the database file.
+     */
     explicit BinaryStorageManager(const std::string& path);
+    
+    /**
+     * @brief Destructor. Ensures all pending data in the buffer is flushed.
+     */
     ~BinaryStorageManager() override;
     
     void saveHeader() override;

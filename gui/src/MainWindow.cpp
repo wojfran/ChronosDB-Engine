@@ -80,7 +80,7 @@ void MainWindow::setupUi() {
 }
 
 void MainWindow::onOpenDatabase() {
-    QString fileName = QFileDialog::getOpenFileName(this, "Open ChronosDB", "", "ChronosDB Files (*.dat);;All Files (*)");
+    QString fileName = QFileDialog::getOpenFileName(this, "Open ChronosDB", "", "ChronosDB Files (*.dat *.json);;All Files (*)");
     if (fileName.isEmpty()) return;
     
     m_logger->appendLog(QString("Opening database: %1").arg(fileName), LogLevel::Info);
@@ -98,7 +98,7 @@ void MainWindow::onOpenDatabase() {
 }
 
 void MainWindow::onGenerateDatabase() {
-    QString fileName = QFileDialog::getSaveFileName(this, "Generate Test Database", "", "ChronosDB Files (*.dat);;All Files (*)");
+    QString fileName = QFileDialog::getSaveFileName(this, "Generate Test Database", "", "ChronosDB Files (*.dat *.json);;All Files (*)");
     if (fileName.isEmpty()) return;
 
     bool ok;
@@ -125,22 +125,47 @@ void MainWindow::onGenerateDatabase() {
             return;
         }
 
+        std::vector<std::string> names = {"Temperature_Engine", "RPM_Sensor", "Pressure_Valve", "Voltage_Battery", "Current_Load", "Flow_Rate", "Vibration_X", "Vibration_Y"};
+        std::vector<std::string> units = {"C", "RPM", "kPa", "V", "A", "L/s", "g", "g"};
+
         for (int i = 0; i < numSignals; ++i) {
-            tempDb.addSignal(i, "Signal_" + std::to_string(i), "V", SignalType::Double);
+            std::string name = (i < names.size()) ? names[i] : "Sensor_" + std::to_string(i);
+            std::string unit = (i < units.size()) ? units[i] : "raw";
+            
+            SignalType type;
+            if (i % 4 == 0) type = SignalType::Double;
+            else if (i % 4 == 1) type = SignalType::Float;
+            else if (i % 4 == 2) type = SignalType::Int32;
+            else type = SignalType::Int64;
+            
+            tempDb.addSignal(i, name, unit, type);
         }
 
         int totalSamples = durationSec * freq;
         double dt = 1.0 / freq;
+        std::vector<double> states(numSignals, 0.0);
 
         for (int s = 0; s < totalSamples; ++s) {
             double t = s * dt;
             int64_t timestampMs = static_cast<int64_t>(t * 1000.0);
             
             for (int i = 0; i < numSignals; ++i) {
-                double phase = (i * 3.14159) / numSignals;
-                double val = std::sin(2 * 3.14159 * (i + 1) * t + phase);
-                if (i % 2 == 1) {
-                    val += 0.2 * ((rand() % 100) / 100.0 - 0.5); // noise
+                double val = 0.0;
+                int type = i % 4;
+                if (type == 0) { // Sine wave
+                    val = 50.0 * std::sin(2 * 3.14159 * 0.5 * t + i) + 50.0;
+                } else if (type == 1) { // Square wave
+                    val = (std::sin(2 * 3.14159 * 1.0 * t) > 0) ? 100.0 : 0.0;
+                } else if (type == 2) { // Sawtooth
+                    val = 100.0 * (t - std::floor(t));
+                } else { // Random walk
+                    states[i] += ((rand() % 100) / 100.0 - 0.5) * 5.0;
+                    val = states[i];
+                }
+                
+                // Add some high-frequency noise
+                if (type != 3) {
+                    val += ((rand() % 100) / 100.0 - 0.5) * 5.0; 
                 }
                 tempDb.append(i, timestampMs, val);
             }

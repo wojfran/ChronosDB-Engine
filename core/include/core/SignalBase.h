@@ -21,6 +21,7 @@ public:
     // move pozwala na zmianę ownershipu zamiast kopiwoania stringu
     SignalBase(uint32_t id, std::string name, std::string unit)
         : m_id(id), m_name(std::move(name)), m_unit(std::move(unit)) {}
+    virtual ~SignalBase() = default;
     uint32_t getId() const { return m_id; }
     const std::string& getName() const { return m_name; }
     void setName(const std::string& name) { m_name = name; }

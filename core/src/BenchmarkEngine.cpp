@@ -16,11 +16,13 @@ BenchmarkEngine::BenchmarkEngine(DatabaseCore& db)
     : m_targetDb(db) {
     std::string tempDir = fs::temp_directory_path().string();
     m_chronosDbPath = tempDir + "/chronosdb_benchmark_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + ".dat";
+    m_chronosDbJsonPath = tempDir + "/chronosdb_benchmark_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + ".json";
     m_sqlitePath = tempDir + "/sqlite_benchmark_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + ".db";
 }
 
 BenchmarkEngine::~BenchmarkEngine() {
     cleanupChronosDb();
+    cleanupChronosDbJson();
     cleanupSQLiteDb();
 }
 
@@ -30,6 +32,19 @@ void BenchmarkEngine::setupChronosDb(uint32_t numChannels) {
     }
     
     m_targetDb.open(m_chronosDbPath);
+    
+    for (uint32_t i = 0; i < numChannels; ++i) {
+        std::string name = "Signal_" + std::to_string(i);
+        m_targetDb.addSignal(i, name, "units", SignalType::Double);
+    }
+}
+
+void BenchmarkEngine::setupChronosDbJson(uint32_t numChannels) {
+    if (fs::exists(m_chronosDbJsonPath)) {
+        fs::remove(m_chronosDbJsonPath);
+    }
+    
+    m_targetDb.open(m_chronosDbJsonPath);
     
     for (uint32_t i = 0; i < numChannels; ++i) {
         std::string name = "Signal_" + std::to_string(i);
@@ -68,6 +83,13 @@ void BenchmarkEngine::cleanupChronosDb() {
     m_targetDb.close();
     if (fs::exists(m_chronosDbPath)) {
         fs::remove(m_chronosDbPath);
+    }
+}
+
+void BenchmarkEngine::cleanupChronosDbJson() {
+    m_targetDb.close();
+    if (fs::exists(m_chronosDbJsonPath)) {
+        fs::remove(m_chronosDbJsonPath);
     }
 }
 
@@ -132,7 +154,7 @@ BenchmarkResult BenchmarkEngine::runComparison(uint32_t numSamples, uint32_t fre
     }
     
     // Benchmark ChronosDB
-    printLog("Setup ChronosDB...");
+    printLog("Setup ChronosDB (Binary)...");
     setupChronosDb(channels);
     printLog("Running ChronosDB Write...");
     result.chronosDb.writeTimeMs = measureChronosDbWrite();
@@ -141,6 +163,17 @@ BenchmarkResult BenchmarkEngine::runComparison(uint32_t numSamples, uint32_t fre
     printLog("Running ChronosDB Read...");
     result.chronosDb.readTimeMs = measureChronosDbReadInterval();
     cleanupChronosDb();
+    
+    // Benchmark ChronosDB JSON
+    printLog("Setup ChronosDB (JSON)...");
+    setupChronosDbJson(channels);
+    printLog("Running ChronosDB JSON Write...");
+    result.chronosDbJson.writeTimeMs = measureChronosDbJsonWrite();
+    result.chronosDbJson.fileSize = getFileSize(m_chronosDbJsonPath);
+    result.chronosDbJson.throughput = (numSamples * channels) / (result.chronosDbJson.writeTimeMs / 1000.0);
+    printLog("Running ChronosDB JSON Read...");
+    result.chronosDbJson.readTimeMs = measureChronosDbJsonReadInterval();
+    cleanupChronosDbJson();
     
     // Benchmark SQLite
     printLog("Setup SQLite...");
@@ -168,6 +201,21 @@ double BenchmarkEngine::measureChronosDbWrite() {
     m_targetDb.close(); 
     // re-open to allow reads
     m_targetDb.open(m_chronosDbPath);
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration<double, std::milli>(end - start).count();
+}
+
+double BenchmarkEngine::measureChronosDbJsonWrite() {
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    for (const auto& sample : m_benchmarkData) {
+        m_targetDb.append(sample.getSignalId(), sample.getValue(), sample.getStatus());
+    }
+    // ensure all data is flushed
+    m_targetDb.close(); 
+    // re-open to allow reads
+    m_targetDb.open(m_chronosDbJsonPath);
     
     auto end = std::chrono::high_resolution_clock::now();
     return std::chrono::duration<double, std::milli>(end - start).count();
@@ -209,6 +257,15 @@ double BenchmarkEngine::measureChronosDbReadInterval() {
     return std::chrono::duration<double, std::milli>(end - start).count();
 }
 
+double BenchmarkEngine::measureChronosDbJsonReadInterval() {
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    auto stats = m_targetDb.getStatsInRange(m_readQueryChannel, m_readQueryT1, m_readQueryT2);
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration<double, std::milli>(end - start).count();
+}
+
 double BenchmarkEngine::measureSQLiteReadInterval() {
     auto start = std::chrono::high_resolution_clock::now();
     
@@ -221,7 +278,7 @@ double BenchmarkEngine::measureSQLiteReadInterval() {
     sqlite3_bind_int64(stmt, 3, m_readQueryT2);
     
     if (sqlite3_step(stmt) == SQLITE_ROW) {
-        // dummy read to force evaluation
+        // Read value to ensure SQL evaluation
         sqlite3_column_double(stmt, 0); 
     }
     sqlite3_finalize(stmt);

@@ -15,6 +15,7 @@ struct BenchmarkResult {
     };
     Metrics chronosDb;
     Metrics sqliteDb;
+    Metrics chronosDbJson;
 };
 
 struct Sample;
@@ -23,12 +24,15 @@ class BenchmarkEngine {
 private:
     DatabaseCore& m_targetDb;
     std::string m_chronosDbPath;
+    std::string m_chronosDbJsonPath;
     std::string m_sqlitePath;
     void* m_sqliteDb = nullptr;
     
     void setupChronosDb(uint32_t numChannels);
+    void setupChronosDbJson(uint32_t numChannels);
     void setupSQLiteDb(uint32_t numChannels);
     void cleanupChronosDb();
+    void cleanupChronosDbJson();
     void cleanupSQLiteDb();
     void generateSamples(uint32_t numSamples, uint32_t numChannels, uint32_t freq);
     uint64_t getFileSize(const std::string& path) const;
@@ -44,7 +48,9 @@ public:
     
     BenchmarkResult runComparison(uint32_t numSamples, uint32_t freq, uint32_t channels, std::function<void(const std::string&)> logCallback = nullptr);
     double measureChronosDbWrite();
+    double measureChronosDbJsonWrite();
     double measureSQLiteWrite();
     double measureChronosDbReadInterval();
+    double measureChronosDbJsonReadInterval();
     double measureSQLiteReadInterval();
 };

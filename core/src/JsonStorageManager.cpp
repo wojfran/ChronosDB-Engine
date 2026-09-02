@@ -31,7 +31,7 @@ JsonStorageManager::~JsonStorageManager() {
 void JsonStorageManager::saveHeader() {
     if (!m_fileStream.is_open()) return;
     
-    // Store current put position so we don't mess up future writes
+    // Store current put position
     uint64_t currentPos = m_fileStream.tellp();
     
     m_fileStream.clear();
@@ -97,7 +97,7 @@ bool JsonStorageManager::readNext(Sample& outSample) {
     std::string line;
     while (std::getline(m_fileStream, line)) {
         if (line.empty() || line[0] != '{') continue;
-        // Skip header if we accidentally read it
+        // Skip header line
         if (line.find("\"magic\":\"JSON\"") != std::string::npos) continue;
         
         if (parseJsonLine(line, outSample)) {
@@ -144,7 +144,7 @@ std::string JsonStorageManager::serializeSample(const Sample& s) {
 }
 
 bool JsonStorageManager::parseJsonLine(const std::string& line, Sample& outSample) {
-    // Simple naive parsing for validation
+    // Parse sample from JSON
     if (line.find("\"timestamp\":") == std::string::npos || 
         line.find("\"signalId\":") == std::string::npos ||
         line.find("\"value\":") == std::string::npos ||
@@ -195,7 +195,7 @@ std::string JsonStorageManager::serializeHeader() {
     oss << "]}";
     std::string json = oss.str();
     
-    // Emulate a fixed-length header by padding with spaces up to 16KB
+    // Pad header to fixed 16KB size
     const size_t targetSize = 16383; // + 1 for newline = 16384 bytes
     if (json.length() < targetSize) {
         json.append(targetSize - json.length(), ' ');

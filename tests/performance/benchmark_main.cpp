@@ -3,7 +3,7 @@
 #include <iostream>
 #include <iomanip>
 
-void printResultRow(const std::string& dbName, const BenchmarkResult::Metrics& metrics) {
+void printResultRow(const std::string& dbName, const DbMetrics& metrics) {
     std::cout << std::left << std::setw(15) << dbName
               << std::right << std::setw(15) << std::fixed << std::setprecision(2) << metrics.writeTimeMs
               << std::setw(15) << metrics.readTimeMs

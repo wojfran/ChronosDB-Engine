@@ -10,11 +10,12 @@ SignalListController::SignalListController(QObject* parent) : QObject(parent) {
     // UI behavior
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_table->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
     m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_table->verticalHeader()->setVisible(false);
     
     connect(m_table, &QTableWidget::cellDoubleClicked, this, &SignalListController::onCellDoubleClicked);
+    connect(m_table, &QTableWidget::itemChanged, this, &SignalListController::onItemChanged);
 }
 
 QWidget* SignalListController::getView() const {
@@ -22,6 +23,7 @@ QWidget* SignalListController::getView() const {
 }
 
 void SignalListController::populateList(const std::vector<SignalDescriptor>& descriptors) {
+    m_table->blockSignals(true);
     clear();
     m_table->setRowCount(descriptors.size());
     
@@ -44,11 +46,21 @@ void SignalListController::populateList(const std::vector<SignalDescriptor>& des
         }
         QTableWidgetItem* typeItem = new QTableWidgetItem(typeStr);
         
+        // Make ID and Type read-only
+        idItem->setFlags(idItem->flags() & ~Qt::ItemIsEditable);
+        typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
+        
+        // Make Name and Unit editable
+        nameItem->setFlags(nameItem->flags() | Qt::ItemIsEditable);
+        unitItem->setFlags(unitItem->flags() | Qt::ItemIsEditable);
+        
         m_table->setItem(i, 0, idItem);
         m_table->setItem(i, 1, nameItem);
         m_table->setItem(i, 2, unitItem);
         m_table->setItem(i, 3, typeItem);
     }
+    
+    m_table->blockSignals(false);
 }
 
 void SignalListController::clear() {
@@ -65,9 +77,25 @@ uint32_t SignalListController::getSelectedSignalId() const {
     return idItem->data(Qt::UserRole).toUInt();
 }
 
-void SignalListController::onCellDoubleClicked(int row, int /*column*/) {
+void SignalListController::onCellDoubleClicked(int row, int column) {
+    // Only plot if double clicking ID or Type (read-only columns)
+    if (column == 0 || column == 3) {
+        QTableWidgetItem* idItem = m_table->item(row, 0);
+        if (idItem) {
+            emit signalSelected(idItem->data(Qt::UserRole).toUInt());
+        }
+    }
+}
+
+void SignalListController::onItemChanged(QTableWidgetItem* item) {
+    if (!item) return;
+    int row = item->row();
     QTableWidgetItem* idItem = m_table->item(row, 0);
-    if (idItem) {
-        emit signalSelected(idItem->data(Qt::UserRole).toUInt());
+    QTableWidgetItem* nameItem = m_table->item(row, 1);
+    QTableWidgetItem* unitItem = m_table->item(row, 2);
+    
+    if (idItem && nameItem && unitItem) {
+        uint32_t id = idItem->data(Qt::UserRole).toUInt();
+        emit signalMetadataChanged(id, nameItem->text(), unitItem->text());
     }
 }

@@ -18,6 +18,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     
     connect(&m_queryWatcher, &QFutureWatcher<std::vector<Sample>>::finished, this, &MainWindow::onSignalDataLoaded);
     connect(m_signalList, &SignalListController::signalSelected, this, &MainWindow::onSignalSelected);
+    
+    connect(m_signalList, &SignalListController::signalMetadataChanged, this, [this](uint32_t id, const QString& name, const QString& unit) {
+        if (m_db.updateSignalMetadata(id, name.toStdString(), unit.toStdString())) {
+            m_logger->appendLog(QString("Updated metadata for signal %1").arg(id), LogLevel::Info);
+        } else {
+            m_logger->appendLog(QString("Failed to update metadata for signal %1").arg(id), LogLevel::Error);
+        }
+    });
 
     setupUi();
 }
